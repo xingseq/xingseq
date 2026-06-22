@@ -24,6 +24,7 @@ import { getDeepSeekApiKey } from '@xingseq/config-core'
 import { createToolRegistry } from '@xingseq/tool-registry'
 import { runChatTurnWithTools } from './chatLoop.js'
 import { DEMO_TOOLS, createDemoHandlers } from './tools.js'
+import { WEB_TOOLS, createWebHandlers } from './webTools.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 
 /**
@@ -34,7 +35,7 @@ import { createWorkspaceStore } from './workspaceStore.js'
  * @param {string} [opts.groupName='workspace']
  * @param {string} [opts.displayName='工作区工具']
  */
-export function createWorkspaceRegistry({ workspace, groupName = 'workspace', displayName = '工作区工具' } = {}) {
+export function createWorkspaceRegistry({ workspace, groupName = 'workspace', displayName = '工作区工具', enableWeb = true } = {}) {
   if (!workspace?.filesDir) {
     throw new Error('createWorkspaceRegistry: workspace.filesDir 必填')
   }
@@ -44,6 +45,13 @@ export function createWorkspaceRegistry({ workspace, groupName = 'workspace', di
     tools: DEMO_TOOLS,
     handlers: createDemoHandlers({ cwd: workspace.filesDir })
   })
+  if (enableWeb) {
+    registry.register('web', {
+      displayName: '联网工具',
+      tools: WEB_TOOLS,
+      handlers: createWebHandlers()
+    })
+  }
   return registry
 }
 

@@ -38,13 +38,27 @@ shared-utils (env 注入 + cli logger)
   → workspaceStore (workspace 级独立对话历史)
 ```
 
-## 内置工具组（绑定 workspace.filesDir）
+## 内置工具组
+
+### `workspace` 组（绑定 workspace.filesDir，只读）
 
 | 工具 | 说明 |
 |---|---|
 | `get_time` | 当前系统时间（iso/locale/unix） |
 | `read_file` | 读 workspace 内文件（≤64KB，禁越权） |
 | `list_dir`  | 列 workspace 内目录（禁越权） |
+
+### `web` 组（联网）
+
+| 工具 | 说明 |
+|---|---|
+| `web_search` | 联网搜索：优先 Tavily（需 key），无 key 自动降级 Bing |
+| `web_fetch`  | 抓取 URL 正文（HTML 自动剥标签，≤1 次 512KB，≤1 次 15s） |
+
+**安全约束——`web_fetch`**：
+- 仅允许 `http://` / `https://`
+- 拒绝 `localhost` / `127.0.0.1` / `10.x` / `172.16-31.x` / `192.168.x` / `169.254.x` 等内网与保留地址（防 SSRF）
+- DNS 解析后仍会再判一次，防止域名重定向绕过
 
 ## 命令行用法
 
@@ -154,6 +168,18 @@ models.json 示例：
   ]
 }
 ```
+
+## Tavily 配置（可选，提升 web_search 质量）
+
+不配也能用 —— `web_search` 会自动降级用 Bing。想要更高质量的结果可以去 [tavily.com](https://tavily.com) 领个 free key，写到 `~/.xingseq/chat-app/config/general.json`：
+
+```json
+{
+  "tavilyApiKey": "tvly-xxxxxxxxxxxx"
+}
+```
+
+该文件是应用通用配置，config-core 会自动读；web_search 存在时优先走 Tavily，失败静默降级。
 
 ## Web 前端（最小版本）
 

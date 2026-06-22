@@ -39,7 +39,9 @@
       "stream output",
       "conversation save/resume",
       "http+sse server",
-      "web frontend (vite+react)"
+      "web frontend (vite+react)",
+      "web_search (tavily+bing fallback)",
+      "web_fetch (ssrf-safe)"
     ]
   }
 }
