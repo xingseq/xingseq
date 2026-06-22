@@ -1,0 +1,30 @@
+{
+  "name": "@xingseq/config-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 基座：通用配置 / 模型配置 / API Key 取值",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./configManager": "./src/configManager.js",
+    "./helpers": "./src/helpers.js"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*"
+  },
+  "xingseq": {
+    "stage": 1,
+    "status": "migrated",
+    "sources": [
+      "electron/data/configManager.js"
+    ],
+    "deferred": [
+      "saveCustomModelConfig / loadCustomModelConfig 依赖 database，待 storage-core",
+      "initAdvancedMode / saveAdvancedMode / initUnrestrictedMode / saveUnrestrictedMode / saveAllowedExecutables / initAllowedExecutables 反向依赖 tools/utils/security，归 L3"
+    ]
+  }
+}

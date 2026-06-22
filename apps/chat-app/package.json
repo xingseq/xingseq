@@ -1,0 +1,39 @@
+{
+  "name": "@xingseq/chat-app",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 应用：交互式多轮对话 CLI（含工具调用循环）",
+  "main": "src/index.js",
+  "bin": {
+    "chat-app": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "dry": "node src/cli.mjs --dry",
+    "live": "node src/cli.mjs --live",
+    "list": "node src/cli.mjs --list",
+    "test": "node src/cli.mjs --once 现在几点了"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/config-core": "*",
+    "@xingseq/llm-core": "*",
+    "@xingseq/memory-store": "*",
+    "@xingseq/tool-registry": "*"
+  },
+  "xingseq": {
+    "stage": 4,
+    "status": "ready",
+    "features": [
+      "interactive REPL",
+      "multi-turn dialog",
+      "tool_calls loop",
+      "stream output",
+      "conversation save/resume"
+    ]
+  }
+}

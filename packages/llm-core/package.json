@@ -1,0 +1,41 @@
+{
+  "name": "@xingseq/llm-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 基座：多 provider LLM 客户端、流式解析、错误标准化、会话控制",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./clients": "./src/clients.js",
+    "./requestBuilder": "./src/requestBuilder.js",
+    "./streamParser": "./src/streamParser.js",
+    "./errorHandler": "./src/errorHandler.js",
+    "./sessionManager": "./src/sessionManager.js",
+    "./executeChat": "./src/executeChat.js"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "openai": "^4.77.0",
+    "https-proxy-agent": "^7.0.2"
+  },
+  "xingseq": {
+    "stage": 1,
+    "status": "migrated",
+    "sources": [
+      "electron/ai/aiClient.js",
+      "electron/ai/requestBuilder.js",
+      "electron/ai/streamParser.js",
+      "electron/ai/errorHandler.js",
+      "electron/ai/sessionManager.js"
+    ],
+    "notes": [
+      "requestBuilder 裁剪掉 toolDefinitions 依赖：tools 改由调用方传入数组",
+      "executeChat 为 llm-core 自身高层 API，不依赖 chatFlow/configManager",
+      "aiServiceCore.js 未迁入：其 chat/chatOnce 编排逻辑落在 L2/L3"
+    ]
+  }
+}

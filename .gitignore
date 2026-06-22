@@ -1,0 +1,54 @@
+node_modules
+dist
+release
+build
+.DS_Store
+*.log
+*.node
+.vscode
+.idea
+package-lock.json
+.env
+
+# 三位一体 Agent 数据目录
+.najie-yesterday
+.najie-today
+.najie-tomorrow
+.najie-developer
+.najie-commit-watcher
+
+# 备份文件
+*.backup
+*.bak
+
+# 运行时文件
+session-snapshot.json
+execution-log.json
+*.session.json
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# 大型数据文件
+*.sqlite
+*.db
+
+# 备份与日志
+*.backup-*
+*.before-*
+*.corrupted
+logs/
+*.pid
+running.lock
+backups/
+reports/
+
+# Qoder
+.qoder/

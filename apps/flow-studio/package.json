@@ -1,0 +1,18 @@
+{
+  "name": "@xingseq/flow-studio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 应用：星序图编辑 / 管理",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "xingseq": {
+    "stage": 4,
+    "status": "scaffold"
+  }
+}

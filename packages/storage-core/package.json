@@ -1,0 +1,35 @@
+{
+  "name": "@xingseq/storage-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 基座：原子文件 / AES 加密 / sql.js 数据库",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./atomicFile": "./src/atomicFile.js",
+    "./encryption": "./src/encryption.js",
+    "./database": "./src/database.js",
+    "./schemas": "./src/schemas.js"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "sql.js": "^1.13.0"
+  },
+  "xingseq": {
+    "stage": 1,
+    "status": "migrated",
+    "sources": [
+      "electron/utils/atomicFile.js",
+      "electron/utils/encryption.js",
+      "electron/data/database.js"
+    ],
+    "deferred": [
+      "encryptionConfigManager.js / emailEncryption.js 含业务逻辑，归 L2/L3",
+      "默认 schemas 含 7 张业务表（conversations_global / website_accounts / conversation_forks / ai_draw_history / custom_models / flow_execution_history / user_preferences），后续按需拆回各业务包"
+    ]
+  }
+}

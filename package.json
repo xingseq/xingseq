@@ -1,0 +1,15 @@
+{
+  "name": "xingseq-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "星序引擎工作区 - 按层分包的拆分版（源代码按需从 xingseq-develop 迁入）",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "scaffold": "node scripts/scaffold-workspace.mjs",
+    "ls:pkgs": "node -e \"const {readdirSync}=require('node:fs');for(const d of ['packages','apps'])for(const n of readdirSync(d)){try{console.log(d+'/'+n)}catch{}}\""
+  }
+}

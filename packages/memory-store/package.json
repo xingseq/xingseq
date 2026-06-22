@@ -1,0 +1,37 @@
+{
+  "name": "@xingseq/memory-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L2 领域：对话索引 / 完整对话文件 / 分岔路径 / 通知消息 / 主应用记忆",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./conversationManager": "./src/conversationManager.js",
+    "./forkPathManager": "./src/forkPathManager.js",
+    "./fileStorage": "./src/fileStorage.js",
+    "./messageStorage": "./src/messageStorage.js",
+    "./mainMemoryService": "./src/mainMemoryService.js"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/storage-core": "*"
+  },
+  "xingseq": {
+    "stage": 2,
+    "status": "ready",
+    "sources": [
+      "electron/data/conversationManager.js",
+      "electron/data/forkPathManager.js",
+      "electron/data/fileStorage.js",
+      "electron/data/messageStorage.js",
+      "electron/data/mainMemoryService.js"
+    ],
+    "deferred": [
+      "analysisReportStorage / tagAnalysisService / conversationAnalysisQueue / knowledgeBaseManager — 分析与知识库后续阶段迁入"
+    ]
+  }
+}

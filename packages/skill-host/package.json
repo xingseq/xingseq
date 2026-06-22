@@ -1,0 +1,18 @@
+{
+  "name": "@xingseq/skill-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L2 领域：skill 下载 / 安装 / 状态 / 清理",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "xingseq": {
+    "stage": 2,
+    "status": "scaffold"
+  }
+}

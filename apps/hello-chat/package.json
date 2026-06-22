@@ -1,0 +1,20 @@
+{
+  "name": "@xingseq/hello-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 验收 demo：CLI 形式串通 shared-utils + config-core + llm-core",
+  "bin": {
+    "hello-chat": "./src/cli.mjs"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "dry": "node src/cli.mjs --dry",
+    "test": "node src/cli.mjs --dry"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/config-core": "*",
+    "@xingseq/llm-core": "*"
+  }
+}

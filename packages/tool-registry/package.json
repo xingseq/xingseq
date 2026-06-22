@@ -1,0 +1,24 @@
+{
+  "name": "@xingseq/tool-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L2 领域：工具定义注册中心 + 统一执行入口 + 敏感操作确认（依赖注入）",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./definitions": "./src/definitions/index.js",
+    "./registry": "./src/registry.js",
+    "./confirmation": "./src/confirmation.js"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*"
+  },
+  "xingseq": {
+    "stage": 2,
+    "status": "ready"
+  }
+}

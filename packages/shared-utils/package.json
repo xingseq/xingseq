@@ -1,0 +1,38 @@
+{
+  "name": "@xingseq/shared-utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 基座：logger / proxy / timestamp / 通用常量",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./env": "./src/env.js",
+    "./logger": "./src/logger.js",
+    "./logFormat": "./src/logFormat.js",
+    "./lazyLogger": "./src/lazyLogger.js",
+    "./proxyManager": "./src/proxyManager.js",
+    "./timestamp": "./src/timestamp.js",
+    "./jsonUtils": "./src/jsonUtils.js",
+    "./constants/provider": "./src/constants/providerConstants.js"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3"
+  },
+  "xingseq": {
+    "stage": 1,
+    "status": "migrated",
+    "sources": [
+      "electron/utils/logger.js",
+      "electron/utils/lazyLogger.js",
+      "electron/utils/logFormat.js",
+      "electron/utils/proxyManager.js",
+      "electron/utils/timestamp.js",
+      "electron/utils/jsonUtils.js",
+      "electron/constants/providerConstants.js"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@xingseq/subapp-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L2 领域：子应用注册 / 进程 / CLI / UI / 记忆",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "xingseq": {
+    "stage": 2,
+    "status": "scaffold"
+  }
+}
