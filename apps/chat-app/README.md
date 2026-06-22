@@ -1,6 +1,11 @@
 # @xingseq/chat-app
 
-L4 应用：**交互式多轮对话 CLI**，含 tool_calls 工具调用循环 + 工作区记忆隔离。
+L4 应用：**交互式多轮对话**，含 tool_calls 工具调用循环 + 工作区记忆隔离。
+
+两种使用形态：
+
+- **CLI**：`node src/cli.mjs`（交互式 REPL）
+- **Web**：`npm run server` + `npm run web`（浏览器对话，Vite + React）
 
 ## 设计要点
 
@@ -130,9 +135,73 @@ await session.save()
 
 ## live 模式前置条件
 
-1. 配置 `DEEPSEEK_API_KEY` 环境变量，或在 develop 配置文件里写好（config-core 会读）
+1. 配置 `DEEPSEEK_API_KEY` 环境变量，或写入 `~/.xingseq/chat-app/config/models.json`（config-core 会读）
 2. 终端能访问 DeepSeek 服务
 3. 默认 `deepseek-chat`；要换模型可传 `customParams.subModel` 或 `provider`
+
+models.json 示例：
+
+```json
+{
+  "models": [
+    {
+      "id": "deepseek-default",
+      "name": "DeepSeek",
+      "provider": "deepseek",
+      "apiKey": "sk-xxx",
+      "isDefault": true
+    }
+  ]
+}
+```
+
+## Web 前端（最小版本）
+
+架构：
+
+```
+browser  ──▶  vite dev (5173)  ──proxy /api──▶  server.mjs (3001)  ──▶  chatSession  ──▶  llm-core / tool-registry
+```
+
+server 用 Node 原生 http，**无 Express 依赖**。前端是独立 Vite + React 子项目（`apps/chat-app/web/`）。
+
+首次启动：
+
+```bash
+# 1. 装前端依赖
+npm run web:install
+
+# 2. 起 HTTP+SSE 服务（端口 3001）
+npm run server
+
+# 3. 起前端 dev server（端口 5173），新开一个终端
+npm run web
+
+# 浏览器打开 http://localhost:5173
+```
+
+Web 端能力（与 CLI 等价 + 多 workspace 切换）：
+
+- 顶部下拉切换 workspace（独立对话历史）
+- 左侧对话列表 + 新建 / 删除
+- 流式渲染 LLM 输出（思考过程 + 正文 + 光标闪烁）
+- 工具调用气泡：实时显示 ⏳ 调用中 → ✓ 完成（含参数 + 返回结果）
+- 多轮 tool_calls 循环全过程可见
+- ⌘/Ctrl + Enter 发送
+
+生产部署：`npm run web:build` 产出 `web/dist`，可挂在任意静态服务器后面，配置反向代理把 `/api/*` 转给 `node src/server.mjs`。
+
+### HTTP 接口（也可以用 curl 直接调）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/health` | 心跳 |
+| GET | `/api/workspaces` | 所有 workspace 列表 |
+| GET | `/api/conversations?workspace=xxx` | workspace 内对话索引 |
+| GET | `/api/conversation/:id?workspace=xxx` | 加载对话 |
+| POST | `/api/conversation/new?workspace=xxx` | 新建空对话 |
+| DELETE | `/api/conversation/:id?workspace=xxx` | 删除对话 |
+| POST | `/api/chat?workspace=xxx` | **SSE 流式对话**，body `{ conversationId, message }`，事件：`chunk` / `tool_call` / `tool_result` / `done` / `error` |
 
 ## 与 workspace-app 的边界（未来）
 
@@ -159,4 +228,4 @@ await session.save()
 | 工具调用安全确认 | ❌（dry 默认通过） |
 | 写文件 / 联网搜索 / 动态工具组 | ❌（留给 workspace-app / 后续） |
 | 任意路径作为 workspace | ❌（仅支持 name；留给 workspace-app） |
-| 前端 UI | ❌（CLI only；可复用 chatSession） |
+| Web 前端 | ✅（Vite + React，复用 chatSession） |

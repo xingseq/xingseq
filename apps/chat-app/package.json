@@ -16,7 +16,11 @@
     "dry": "node src/cli.mjs --dry",
     "live": "node src/cli.mjs --live",
     "list": "node src/cli.mjs --list",
-    "test": "node src/cli.mjs --once 现在几点了"
+    "test": "node src/cli.mjs --once 现在几点了",
+    "server": "node src/server.mjs",
+    "web:install": "npm install --prefix web",
+    "web": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web"
   },
   "dependencies": {
     "@xingseq/shared-utils": "*",
@@ -33,7 +37,9 @@
       "multi-turn dialog",
       "tool_calls loop",
       "stream output",
-      "conversation save/resume"
+      "conversation save/resume",
+      "http+sse server",
+      "web frontend (vite+react)"
     ]
   }
 }
