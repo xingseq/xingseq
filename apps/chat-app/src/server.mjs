@@ -53,9 +53,13 @@ setSharedEnv({
 const { createChatSession, createWorkspaceRegistry } = await import('./chatSession.js')
 const { resolveWorkspace, ensureWorkspace, listWorkspaces } = await import('./workspace.js')
 const { createWorkspaceStore } = await import('./workspaceStore.js')
+const { createConfirmationManager } = await import('@xingseq/tool-registry')
 
 // ===== 3. 会话缓存：key = `${workspaceName}::${conversationId}` =====
 const sessionCache = new Map()
+
+// confirmId → manager 映射，用于 POST /api/confirm 路由到正确的 manager.resolvePendingConfirm
+const confirmManagers = new Map()
 
 async function getOrCreateSession(workspaceName, conversationId) {
   const key = `${workspaceName}::${conversationId}`
@@ -205,6 +209,51 @@ async function route(req, res) {
       return res.end()
     }
 
+    // 为本次 SSE 连接创建独立的确认管理器
+    // 默认 30s 倒计时；前端可提前点「立即执行」或「拒绝」
+    const localManager = createConfirmationManager({
+      isCLI: false,
+      countdownConfigReader: async () => ({
+        enabled: true,
+        seconds: 30,
+        applyToTools: [
+          // 全部默认敏感工具都走倒计时确认模式
+          'set_file_content',
+          'replace_file_string',
+          'copy_file',
+          'move_file',
+          'execute_command',
+          'launch_application',
+          'insert_record',
+          'update_record',
+          'delete_record',
+          'create_table',
+          'download_file',
+          'delete_file'
+        ]
+      }),
+      sendFrontendConfirm: async (payload) => {
+        confirmManagers.set(payload.confirmId, localManager)
+        sseSend(res, 'confirm_request', payload)
+      },
+      // 额外注册「delete_file」/「create_directory」为敏感工具
+      sensitiveTools: [
+        'set_file_content',
+        'replace_file_string',
+        'copy_file',
+        'move_file',
+        'execute_command',
+        'launch_application',
+        'insert_record',
+        'update_record',
+        'delete_record',
+        'create_table',
+        'download_file',
+        'delete_file',
+        'create_directory'
+      ]
+    })
+
     // 心跳：每 15s 一个注释，避免连接被中间网关掐
     const heartbeat = setInterval(() => {
       if (!res.writableEnded) res.write(': hb\n\n')
@@ -215,6 +264,7 @@ async function route(req, res) {
 
     try {
       const result = await session.chat(message, {
+        confirmation: localManager,
         onChunk: (chunk) => {
           // chunk: { type: 'THINK'|'CONTENT'|'TOOL_CALL', content, done? }
           sseSend(res, 'chunk', chunk)
@@ -239,6 +289,12 @@ async function route(req, res) {
             result: error ? null : result,
             error: error ? error.message : null
           })
+        },
+        onToolDenied: (tc) => {
+          sseSend(res, 'tool_denied', {
+            id: tc.id,
+            name: tc.function?.name || tc.name
+          })
         }
       })
 
@@ -259,6 +315,22 @@ async function route(req, res) {
       res.end()
     }
     return
+  }
+
+  // POST /api/confirm  body: { confirmId, confirmed }
+  if (method === 'POST' && pathname === '/api/confirm') {
+    const body = await readBody(req).catch(() => ({}))
+    const { confirmId, confirmed } = body
+    if (!confirmId || typeof confirmed !== 'boolean') {
+      return sendJSON(res, 400, { error: '缺少 confirmId 或 confirmed' })
+    }
+    const mgr = confirmManagers.get(confirmId)
+    if (!mgr) {
+      return sendJSON(res, 404, { error: '未找到对应的 confirmId（可能已超时或已处理）' })
+    }
+    const ok = mgr.resolvePendingConfirm(confirmId, confirmed)
+    confirmManagers.delete(confirmId)
+    return sendJSON(res, 200, { ok, confirmId, confirmed })
   }
 
   // 404

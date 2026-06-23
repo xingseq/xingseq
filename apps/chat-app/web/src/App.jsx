@@ -31,6 +31,9 @@ export default function App() {
   const [input, setInput] = useState('')
   const scrollRef = useRef(null)
 
+  // 当前未处理的确认请求（同一时间最多一个，后台串行调工具）
+  const [pendingConfirm, setPendingConfirm] = useState(null)
+
   // ===== 拉 workspace 列表 =====
   useEffect(() => {
     fetchJSON('/api/workspaces')
@@ -149,6 +152,23 @@ export default function App() {
               content: '',
               reasoning: ''
             } : s)
+          } else if (event === 'tool_denied') {
+            setStreaming(s => s ? {
+              ...s,
+              toolEvents: [...s.toolEvents, { id: data.id, name: data.name, status: 'denied' }],
+              content: '',
+              reasoning: ''
+            } : s)
+          } else if (event === 'confirm_request') {
+            // 后端将倒计时同步下发：如未处理 → 到期后后端默认确认
+            setPendingConfirm({
+              confirmId: data.confirmId,
+              toolName: data.toolName,
+              message: data.message,
+              detail: data.detail,
+              countdown: data.countdown,
+              startAt: Date.now()
+            })
           } else if (event === 'done') {
             if (Array.isArray(data.messages)) setMessages(data.messages)
             if (data.error) setError(data.error.message || JSON.stringify(data.error))
@@ -162,6 +182,7 @@ export default function App() {
     } finally {
       setBusy(false)
       setStreaming(null)
+      setPendingConfirm(null)
       refreshConversations()
     }
   }
@@ -186,6 +207,22 @@ export default function App() {
 
   function findToolResult(callId) {
     return messages.find(m => m.role === 'tool' && m.tool_call_id === callId)
+  }
+
+  // 提交确认响应到后端
+  async function submitConfirm(confirmed) {
+    const pc = pendingConfirm
+    if (!pc) return
+    setPendingConfirm(null)
+    try {
+      await fetch('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmId: pc.confirmId, confirmed })
+      })
+    } catch (e) {
+      setError('提交确认失败：' + e.message)
+    }
   }
 
   return (
@@ -274,6 +311,14 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {pendingConfirm && (
+        <ConfirmDialog
+          info={pendingConfirm}
+          onApprove={() => submitConfirm(true)}
+          onReject={() => submitConfirm(false)}
+        />
+      )}
     </div>
   )
 }
@@ -344,6 +389,9 @@ function StreamingBubble({ s }) {
                     {te.error ? `错误：${te.error}` : truncate(JSON.stringify(te.result), 600)}
                   </pre>
                 )}
+                {te.status === 'denied' && (
+                  <pre className="tool-result">用户拒绝了本次调用</pre>
+                )}
               </div>
             ))}
           </div>
@@ -360,4 +408,50 @@ function StreamingBubble({ s }) {
 function truncate(str, n) {
   if (typeof str !== 'string') str = String(str ?? '')
   return str.length > n ? str.slice(0, n) + '…' : str
+}
+
+function ConfirmDialog({ info, onApprove, onReject }) {
+  const [remain, setRemain] = useState(info.countdown || 30)
+  useEffect(() => {
+    setRemain(info.countdown || 30)
+    const startAt = info.startAt || Date.now()
+    const total = info.countdown || 30
+    const t = setInterval(() => {
+      const passed = (Date.now() - startAt) / 1000
+      const left = Math.max(0, total - passed)
+      setRemain(left)
+      if (left <= 0) clearInterval(t)
+    }, 200)
+    return () => clearInterval(t)
+  }, [info.confirmId])
+
+  return (
+    <div className="confirm-overlay">
+      <div className="confirm-dialog">
+        <div className="confirm-head">
+          <span className="confirm-icon">⚠</span>
+          <strong>需要确认 · {info.toolName}</strong>
+        </div>
+        <div className="confirm-body">
+          <div className="confirm-message">{info.message}</div>
+          <pre className="confirm-detail">{info.detail}</pre>
+          <div className="confirm-countdown">
+            <div className="countdown-bar">
+              <div
+                className="countdown-fill"
+                style={{ width: `${Math.max(0, (remain / (info.countdown || 30)) * 100)}%` }}
+              />
+            </div>
+            <div className="countdown-text">
+              倒计时 {remain.toFixed(1)} s 后自动执行
+            </div>
+          </div>
+        </div>
+        <div className="confirm-actions">
+          <button className="btn btn-danger" onClick={onReject}>拒绝</button>
+          <button className="btn btn-primary" onClick={onApprove}>立即执行</button>
+        </div>
+      </div>
+    </div>
+  )
 }

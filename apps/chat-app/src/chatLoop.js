@@ -27,6 +27,8 @@ const DEFAULT_MAX_DEPTH = 5
  * @param {function} [opts.onChunk]
  * @param {function} [opts.onToolCall]       - 工具开始执行时回调 (toolCall) => void
  * @param {function} [opts.onToolResult]     - 工具执行完成回调 (toolCall, result, error?) => void
+ * @param {function} [opts.onToolDenied]     - 工具被拒绝时回调 (toolCall) => void
+ * @param {object}   [opts.confirmation]     - 工具确认管理器（createConfirmationManager 返回值）
  * @param {number}   [opts.maxDepth=5]
  * @param {function} [opts.executor]         - 注入式 chat 执行器（默认 executeChat）；测试用
  * @returns {Promise<{ success, fullContent?, toolCalls?, depth, error?, model? }>}
@@ -45,6 +47,8 @@ export async function runChatTurnWithTools(opts) {
     onChunk = null,
     onToolCall = null,
     onToolResult = null,
+    onToolDenied = null,
+    confirmation = null,
     maxDepth = DEFAULT_MAX_DEPTH,
     executor = executeChat
   } = opts || {}
@@ -99,6 +103,26 @@ export async function runChatTurnWithTools(opts) {
 
     // 依次派发工具
     for (const tc of toolCalls) {
+      const toolName = tc.function?.name || tc.name
+      // 解析参数（需要传给确认弹窗展示）
+      let parsedArgs = {}
+      try {
+        parsedArgs = typeof tc.function?.arguments === 'string'
+          ? JSON.parse(tc.function.arguments || '{}')
+          : (tc.function?.arguments || tc.args || tc.arguments || {})
+      } catch { /* 保留空对象 */ }
+
+      // 敏感工具需确认
+      if (confirmation && typeof confirmation.confirmToolExecution === 'function') {
+        const ok = await confirmation.confirmToolExecution(toolName, parsedArgs).catch(() => false)
+        if (!ok) {
+          if (onToolDenied) onToolDenied(tc)
+          const denyMsg = JSON.stringify({ error: '用户拒绝了本次工具调用', tool: toolName })
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: denyMsg })
+          continue
+        }
+      }
+
       if (onToolCall) onToolCall(tc)
       let toolPayload
       try {

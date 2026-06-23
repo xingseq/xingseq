@@ -26,7 +26,7 @@ L4 应用：**交互式多轮对话**，含 tool_calls 工具调用循环 + 工�
         └── memory/
 ```
 
-> chat-app 自带的工具组**只读**：不会写入或删除 workspace 文件。写权限留给未来的 workspace-app。
+> chat-app 内置 4 组工具：`workspace`（只读）、`web`（联网）、`fs`（写文件）、`shell`（执行命令）。**所有写动作都被路径越权防护、命令白名单、参数过滤、Web 端确认弹窗四层兜住**。设计与 [`xingseq-develop`](../../) 三层安全机制（敏感工具确认 + 命令白名单 + 路径黑名单）保持一致。
 
 ## 串通的能力链路
 
@@ -59,6 +59,52 @@ shared-utils (env 注入 + cli logger)
 - 仅允许 `http://` / `https://`
 - 拒绝 `localhost` / `127.0.0.1` / `10.x` / `172.16-31.x` / `192.168.x` / `169.254.x` 等内网与保留地址（防 SSRF）
 - DNS 解析后仍会再判一次，防止域名重定向绕过
+
+### `fs` 组（写文件，敏感）
+
+命名严格对齐 develop，自动命中 `DEFAULT_SENSITIVE_TOOLS`。
+
+| 工具 | 说明 |
+|---|---|
+| `set_file_content` | 整文件覆盖写入（≤10MB） |
+| `replace_file_string` | 局部替换；`old_string` 必须在文件中**唯一出现**，否则报错 |
+| `create_directory` | 递归创建目录 |
+| `delete_file` | 删文件/目录；非空目录默认拒绝，需显式 `recursive=true`；不能删 workspace 根目录 |
+
+**路径越权防护**：所有路径都经 `resolveSafePath` 计算，`..` / 绝对路径 / 解析后跳出 `workspace.filesDir` 一律抛错。
+
+### `shell` 组（执行命令，敏感）
+
+| 工具 | 说明 |
+|---|---|
+| `execute_command` | 在 `workspace.filesDir` 内执行命令；**强制 cwd**，不可跨出工作区 |
+
+两种执行模式自动选择：
+
+- **argv 模式**（默认）：`{ command, args[] }` 走白名单。允许 `npm/npx/yarn/pnpm/node/git/make/cmake/python/ls/cat/grep/find/echo/...`；参数若含 `; \` $() <> | &` 等被参数过滤拦截。
+- **shell 兜底**：命令文本中检测到 `&&` / `||` / `;` / `|` / `<>` / `\`` / `$()` 时自动用 `bash -c`（macOS/Linux）/ `cmd /c`（Windows）执行整条命令。
+
+输出截断 64KB，默认 30s 超时（最大 5min）。
+
+## 工具确认机制（敏感工具）
+
+复用 `@xingseq/tool-registry` 的 `createConfirmationManager`，行为与 develop 完全一致：
+
+| 模式 | 行为 |
+|---|---|
+| **CLI** (`isCLI: true`) | 自动放行（与 develop CLI 相同） |
+| **Web** (server.mjs) | 每个 SSE 请求独立 manager，倒计时 30s 模式 |
+
+Web 端流程：
+
+```
+LLM tool_call → manager 命中敏感工具 → SSE 推 confirm_request 给前端
+  ├─ 用户点「立即执行」      → POST /api/confirm { confirmed: true }  → 工具执行
+  ├─ 用户点「拒绝」          → POST /api/confirm { confirmed: false } → SSE 推 tool_denied，工具返回 error 给 LLM
+  └─ 30s 不操作              → 倒计时结束自动放行（与 develop 默认一致）
+```
+
+敏感工具列表（默认）：`set_file_content` / `replace_file_string` / `delete_file` / `create_directory` / `execute_command` / `copy_file` / `move_file` / `download_file` / `launch_application` / `insert_record` / `update_record` / `delete_record` / `create_table`。
 
 ## 命令行用法
 
@@ -227,16 +273,18 @@ Web 端能力（与 CLI 等价 + 多 workspace 切换）：
 | GET | `/api/conversation/:id?workspace=xxx` | 加载对话 |
 | POST | `/api/conversation/new?workspace=xxx` | 新建空对话 |
 | DELETE | `/api/conversation/:id?workspace=xxx` | 删除对话 |
-| POST | `/api/chat?workspace=xxx` | **SSE 流式对话**，body `{ conversationId, message }`，事件：`chunk` / `tool_call` / `tool_result` / `done` / `error` |
+| POST | `/api/chat?workspace=xxx` | **SSE 流式对话**，body `{ conversationId, message }`，事件：`chunk` / `tool_call` / `tool_result` / `tool_denied` / `confirm_request` / `done` / `error` |
+| POST | `/api/confirm` | 前端提交确认结果，body `{ confirmId, confirmed }` |
 
 ## 与 workspace-app 的边界（未来）
 
-| 维度 | chat-app | workspace-app（计划中） |
+| 概念 | chat-app | workspace-app（计划中） |
 |---|---|---|
 | 默认 workspace | ✅ 单一固定 (`default`) | ✅ 多工作区，可创建/切换 |
 | 工具作用域 | 锁死在 `<workspace>/files` | 每个 workspace 独立沙箱 |
 | 读 (`list_dir` / `read_file`) | ✅ | ✅ |
-| 写 (`write_file` / `mkdir`) | ❌（默认只读） | ✅（显式开启） |
+| 写 (`set_file_content` / `delete_file` ...) | ✅（带路径越权防护 + 确认机制） | ✅（独立沙箱内） |
+| Shell 命令 | ✅（白名单 + 强制 cwd） | ✅ |
 | 工作区元数据 | 无 | 名称/描述/最近访问/标签 |
 | 跨 workspace 切换 UI | ❌（只能 `--workspace`） | ✅ |
 | 对话与 workspace 绑定 | ✅ | ✅ |
@@ -251,7 +299,8 @@ Web 端能力（与 CLI 等价 + 多 workspace 切换）：
 | 流式输出 | ✅ |
 | 默认 workspace 自动创建 + 欢迎文件 | ✅ |
 | workspace 级对话隔离 | ✅ |
-| 工具调用安全确认 | ❌（dry 默认通过） |
-| 写文件 / 联网搜索 / 动态工具组 | ❌（留给 workspace-app / 后续） |
+| 工具调用安全确认 | ✅（Web 倒计时弹窗 / CLI 默认放行） |
+| 写文件 / 联网搜索 / shell 命令 | ✅（全部含路径越权防护 + 白名单） |
+| 动态工具组 | ❌（留给 workspace-app / 后续） |
 | 任意路径作为 workspace | ❌（仅支持 name；留给 workspace-app） |
 | Web 前端 | ✅（Vite + React，复用 chatSession） |

@@ -369,3 +369,97 @@ html, body, #root {
   outline: none;
   border-color: var(--accent);
 }
+
+/* ── 确认弹窗 ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.confirm-dialog {
+  width: min(560px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: dlg-in 0.18s ease-out;
+}
+@keyframes dlg-in {
+  from { transform: translateY(-8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1);     opacity: 1; }
+}
+.confirm-head {
+  padding: 14px 18px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px;
+}
+.confirm-icon {
+  display: inline-flex;
+  width: 24px; height: 24px;
+  align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  font-size: 14px;
+}
+.confirm-body { padding: 16px 18px; }
+.confirm-message {
+  font-size: 14px;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.confirm-detail {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow: auto;
+}
+.confirm-countdown { margin-top: 4px; }
+.countdown-bar {
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.countdown-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s linear;
+}
+.countdown-text {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.confirm-actions .btn {
+  min-width: 96px;
+}
+
+/* 拒绝状态的工具卡 */
+.tool-card.status-denied {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}

@@ -25,6 +25,8 @@ import { createToolRegistry } from '@xingseq/tool-registry'
 import { runChatTurnWithTools } from './chatLoop.js'
 import { DEMO_TOOLS, createDemoHandlers } from './tools.js'
 import { WEB_TOOLS, createWebHandlers } from './webTools.js'
+import { FS_TOOLS, createFsHandlers } from './fsTools.js'
+import { SHELL_TOOLS, createShellHandlers } from './shellTools.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 
 /**
@@ -35,7 +37,14 @@ import { createWorkspaceStore } from './workspaceStore.js'
  * @param {string} [opts.groupName='workspace']
  * @param {string} [opts.displayName='工作区工具']
  */
-export function createWorkspaceRegistry({ workspace, groupName = 'workspace', displayName = '工作区工具', enableWeb = true } = {}) {
+export function createWorkspaceRegistry({
+  workspace,
+  groupName = 'workspace',
+  displayName = '工作区工具',
+  enableWeb = true,
+  enableFs = true,
+  enableShell = true
+} = {}) {
   if (!workspace?.filesDir) {
     throw new Error('createWorkspaceRegistry: workspace.filesDir 必填')
   }
@@ -50,6 +59,20 @@ export function createWorkspaceRegistry({ workspace, groupName = 'workspace', di
       displayName: '联网工具',
       tools: WEB_TOOLS,
       handlers: createWebHandlers()
+    })
+  }
+  if (enableFs) {
+    registry.register('fs', {
+      displayName: '文件写工具',
+      tools: FS_TOOLS,
+      handlers: createFsHandlers({ cwd: workspace.filesDir })
+    })
+  }
+  if (enableShell) {
+    registry.register('shell', {
+      displayName: 'Shell 命令工具',
+      tools: SHELL_TOOLS,
+      handlers: createShellHandlers({ cwd: workspace.filesDir })
     })
   }
   return registry
@@ -137,6 +160,8 @@ export function createChatSession(opts = {}) {
       onChunk: options.onChunk,
       onToolCall: options.onToolCall,
       onToolResult: options.onToolResult,
+      onToolDenied: options.onToolDenied,
+      confirmation: options.confirmation || null,
       executor: options.executor
     })
 
