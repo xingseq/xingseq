@@ -23,7 +23,7 @@ install: ## 安装全部依赖（含所有 workspace）
 # ---------------------------------------------------------------------------
 # 开发
 # ---------------------------------------------------------------------------
-.PHONY: dev chat chat-dry chat-live chat-list server web
+.PHONY: dev chat chat-dry chat-live chat-list server web web-install web-dev
 dev: ## 启动 chat-app CLI 交互模式
 	npm start -w apps/chat-app
 
@@ -38,10 +38,19 @@ chat-live: ## chat-app live 模式
 chat-list: ## 列出 chat-app 可用工具
 	npm run list -w apps/chat-app
 
-server: ## 启动 HTTP+SSE 后端
+server: ## 启动 HTTP+SSE 后端（:3001）
 	npm run server -w apps/chat-app
 
-web: ## 启动 Web 前端（Vite 开发服务器）
+web: ## 启动 Web 前端（Vite :5173）
+	npm run web -w apps/chat-app
+
+web-install: ## 安装 Web 前端依赖（首次）
+	npm run web:install -w apps/chat-app
+
+web-dev: ## 一键启动 Web 开发环境（后端 :3001 + 前端 :5173）
+	@echo "启动中... 浏览器打开 http://localhost:5173（Ctrl+C 退出）"
+	@trap 'kill 0' EXIT; \
+	npm run server -w apps/chat-app & \
 	npm run web -w apps/chat-app
 
 # ---------------------------------------------------------------------------
