@@ -11,5 +11,10 @@
   "scripts": {
     "scaffold": "node scripts/scaffold-workspace.mjs",
     "ls:pkgs": "node -e \"const {readdirSync}=require('node:fs');for(const d of ['packages','apps'])for(const n of readdirSync(d)){try{console.log(d+'/'+n)}catch{}}\""
+  },
+  "dependencies": {
+    "imap": "^0.8.19",
+    "mailparser": "^3.9.11",
+    "nodemailer": "^9.0.1"
   }
 }

@@ -23,7 +23,7 @@ install: ## 安装全部依赖（含所有 workspace）
 # ---------------------------------------------------------------------------
 # 开发
 # ---------------------------------------------------------------------------
-.PHONY: dev chat chat-dry chat-live chat-list server web web-install web-dev
+.PHONY: dev chat chat-dry chat-live chat-list server web web-install web-dev mail mail-dry mail-test mail-once
 dev: ## 启动 chat-app CLI 交互模式
 	npm start -w apps/chat-app
 
@@ -52,6 +52,24 @@ web-dev: ## 一键启动 Web 开发环境（后端 :3001 + 前端 :5173）
 	@trap 'kill 0' EXIT; \
 	npm run server -w apps/chat-app & \
 	npm run web -w apps/chat-app
+
+# ---------------------------------------------------------------------------
+# 邮件网关
+# ---------------------------------------------------------------------------
+mail: ## 启动邮件网关（真实邮箱 + 真实 LLM）
+	npm run mail -w apps/chat-app
+
+mail-dry: ## 启动邮件网关 dry 模式（虚拟邮箱 + mock LLM，完全离线）
+	npm run mail:dry -w apps/chat-app
+
+mail-mock: ## 启动邮件网关 mock 模式（虚拟邮箱 + 真实 LLM）
+	npm run mail:mock -w apps/chat-app
+
+mail-test: ## 向虚拟邮箱投递一封测试邮件
+	npm run mail:test -w apps/chat-app
+
+mail-once: ## 单次对话测试（不启动监听）
+	npm run mail:once -w apps/chat-app
 
 # ---------------------------------------------------------------------------
 # 构建

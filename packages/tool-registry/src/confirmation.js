@@ -22,7 +22,8 @@ export const DEFAULT_SENSITIVE_TOOLS = [
   'update_record',
   'delete_record',
   'create_table',
-  'download_file'
+  'download_file',
+  'send_email'
 ]
 
 /**

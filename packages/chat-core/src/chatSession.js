@@ -27,6 +27,7 @@ import { DEMO_TOOLS, createDemoHandlers } from './tools/workspace.js'
 import { WEB_TOOLS, createWebHandlers } from './tools/web.js'
 import { FS_TOOLS, createFsHandlers } from './tools/fs.js'
 import { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
+import { EMAIL_TOOLS, createEmailHandlers } from './tools/email.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 
 /**
@@ -43,7 +44,9 @@ export function createWorkspaceRegistry({
   displayName = '工作区工具',
   enableWeb = true,
   enableFs = true,
-  enableShell = true
+  enableShell = true,
+  enableEmail = false,
+  emailSendFn = null
 } = {}) {
   if (!workspace?.filesDir) {
     throw new Error('createWorkspaceRegistry: workspace.filesDir 必填')
@@ -73,6 +76,13 @@ export function createWorkspaceRegistry({
       displayName: 'Shell 命令工具',
       tools: SHELL_TOOLS,
       handlers: createShellHandlers({ cwd: workspace.filesDir })
+    })
+  }
+  if (enableEmail && emailSendFn) {
+    registry.register('email', {
+      displayName: '邮件工具',
+      tools: EMAIL_TOOLS,
+      handlers: createEmailHandlers({ sendFn: emailSendFn })
     })
   }
   return registry

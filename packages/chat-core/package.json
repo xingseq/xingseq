@@ -15,13 +15,22 @@
     "./tools/workspace": "./src/tools/workspace.js",
     "./tools/fs": "./src/tools/fs.js",
     "./tools/shell": "./src/tools/shell.js",
-    "./tools/web": "./src/tools/web.js"
+    "./tools/web": "./src/tools/web.js",
+    "./tools/email": "./src/tools/email.js",
+    "./mail/EmailMonitor": "./src/mail/EmailMonitor.js",
+    "./mail/MockEmailMonitor": "./src/mail/MockEmailMonitor.js",
+    "./mail/VirtualMailboxStore": "./src/mail/VirtualMailboxStore.js"
   },
   "dependencies": {
     "@xingseq/shared-utils": "*",
     "@xingseq/config-core": "*",
     "@xingseq/llm-core": "*",
     "@xingseq/tool-registry": "*"
+  },
+  "optionalDependencies": {
+    "imap": "^0.8.19",
+    "mailparser": "^3.6.0",
+    "nodemailer": "^6.9.0"
   },
   "xingseq": {
     "stage": 3,

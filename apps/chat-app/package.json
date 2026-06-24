@@ -20,7 +20,12 @@
     "server": "node src/server.mjs",
     "web:install": "npm install --prefix web",
     "web": "npm run dev --prefix web",
-    "web:build": "npm run build --prefix web"
+    "web:build": "npm run build --prefix web",
+    "mail": "node src/mail-gateway.mjs",
+    "mail:dry": "node src/mail-gateway.mjs --dry",
+    "mail:mock": "node src/mail-gateway.mjs --mock",
+    "mail:test": "node src/mail-gateway.mjs --send-test",
+    "mail:once": "node src/mail-gateway.mjs --once"
   },
   "dependencies": {
     "@xingseq/shared-utils": "*",
