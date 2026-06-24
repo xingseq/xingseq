@@ -21,7 +21,7 @@ import {
   DEFAULT_COMMAND_TIMEOUT,
   MAX_COMMAND_TIMEOUT,
   ALLOWED_COMMANDS
-} from './security.js'
+} from '../security.js'
 
 export const executeCommandTool = {
   type: 'function',

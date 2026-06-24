@@ -50,9 +50,15 @@ setSharedEnv({
 })
 
 // ===== 2. 业务模块 import =====
-const { createChatSession, createWorkspaceRegistry } = await import('./chatSession.js')
-const { resolveWorkspace, ensureWorkspace, listWorkspaces } = await import('./workspace.js')
-const { createWorkspaceStore } = await import('./workspaceStore.js')
+// 对话能力走 IChatProvider 接口（createProvider），底层实现可运行时替换。
+const {
+  createWorkspaceRegistry,
+  resolveWorkspace,
+  ensureWorkspace,
+  listWorkspaces,
+  createWorkspaceStore
+} = await import('@xingseq/chat-core')
+const { createProvider, resolveProviderType } = await import('./provider.mjs')
 const { createConfirmationManager } = await import('@xingseq/tool-registry')
 
 // ===== 3. 会话缓存：key = `${workspaceName}::${conversationId}` =====
@@ -61,6 +67,11 @@ const sessionCache = new Map()
 // confirmId → manager 映射，用于 POST /api/confirm 路由到正确的 manager.resolvePendingConfirm
 const confirmManagers = new Map()
 
+/**
+ * 取/建一个 IChatProvider 实例（按 workspace + conversationId 缓存）
+ *
+ * @returns {Promise<import('@xingseq/chat-core').IChatProvider>}
+ */
 async function getOrCreateSession(workspaceName, conversationId) {
   const key = `${workspaceName}::${conversationId}`
   if (sessionCache.has(key)) return sessionCache.get(key)
@@ -68,7 +79,8 @@ async function getOrCreateSession(workspaceName, conversationId) {
   const ws = resolveWorkspace({ workspace: workspaceName })
   await ensureWorkspace(ws)
   const registry = createWorkspaceRegistry({ workspace: ws })
-  const session = createChatSession({
+  // 这里只声明返回 IChatProvider；具体由 provider.mjs 决定走 chat-core 还是 ai-butler。
+  const session = createProvider({
     id: conversationId,
     workspace: ws,
     registry
@@ -353,6 +365,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[chat-app server] http://localhost:${PORT}`)
+  console.log(`  provider: ${resolveProviderType()}`)
   console.log(`  userData: ${userData}`)
   console.log(`  health:   http://localhost:${PORT}/api/health`)
 })

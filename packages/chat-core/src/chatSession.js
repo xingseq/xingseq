@@ -23,10 +23,10 @@
 import { getDeepSeekApiKey } from '@xingseq/config-core'
 import { createToolRegistry } from '@xingseq/tool-registry'
 import { runChatTurnWithTools } from './chatLoop.js'
-import { DEMO_TOOLS, createDemoHandlers } from './tools.js'
-import { WEB_TOOLS, createWebHandlers } from './webTools.js'
-import { FS_TOOLS, createFsHandlers } from './fsTools.js'
-import { SHELL_TOOLS, createShellHandlers } from './shellTools.js'
+import { DEMO_TOOLS, createDemoHandlers } from './tools/workspace.js'
+import { WEB_TOOLS, createWebHandlers } from './tools/web.js'
+import { FS_TOOLS, createFsHandlers } from './tools/fs.js'
+import { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 
 /**

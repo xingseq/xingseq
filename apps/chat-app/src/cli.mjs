@@ -49,9 +49,16 @@ setSharedEnv({
 })
 
 // ===== 2. 业务模块 import =====
-const { createChatSession, createWorkspaceRegistry } = await import('./chatSession.js')
-const { resolveWorkspace, ensureWorkspace, listWorkspaces } = await import('./workspace.js')
-const { createWorkspaceStore } = await import('./workspaceStore.js')
+// 注意：这里只 import workspace 治理 + provider 工厂；对话能力一律走 IChatProvider 接口。
+// 切换底层（chat-core ↔ ai-butler）= 改 provider.mjs，不动本文件。
+const {
+  createWorkspaceRegistry,
+  resolveWorkspace,
+  ensureWorkspace,
+  listWorkspaces,
+  createWorkspaceStore
+} = await import('@xingseq/chat-core')
+const { createProvider, resolveProviderType } = await import('./provider.mjs')
 
 // ===== 3. 解析参数 =====
 const args = process.argv.slice(2)
@@ -121,8 +128,11 @@ if (isList) {
 }
 
 // ===== 7. 创建会话 =====
+// session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 ai-butler，
+// 这段代码都不需要修改。
 const registry = createWorkspaceRegistry({ workspace })
-const session = createChatSession({
+/** @type {import('@xingseq/chat-core').IChatProvider} */
+const session = createProvider({
   id: resumeId || undefined,
   workspace,
   registry
@@ -281,6 +291,7 @@ if (isOnce || (userMessage && !resumeId)) {
 console.log(`
 === chat-app REPL ===
 模式:      ${isLive ? 'live (真实 LLM)' : 'dry (mock)'}
+provider:  ${resolveProviderType()}
 workspace: ${workspace.name}${ensured.created ? ' (首次创建，已写入欢迎文件)' : ''}
 files:     ${workspace.filesDir}
 memory:    ${workspace.memoryDir}

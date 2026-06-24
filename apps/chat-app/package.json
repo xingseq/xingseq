@@ -27,7 +27,8 @@
     "@xingseq/config-core": "*",
     "@xingseq/llm-core": "*",
     "@xingseq/memory-store": "*",
-    "@xingseq/tool-registry": "*"
+    "@xingseq/tool-registry": "*",
+    "@xingseq/chat-core": "*"
   },
   "xingseq": {
     "stage": 4,

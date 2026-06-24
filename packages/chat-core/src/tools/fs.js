@@ -15,7 +15,7 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { resolveSafePath, MAX_FILE_SIZE } from './security.js'
+import { resolveSafePath, MAX_FILE_SIZE } from '../security.js'
 
 // ── OpenAI Function Calling 工具定义 ─────────────────────────────────────────
 

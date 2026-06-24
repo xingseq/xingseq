@@ -15,8 +15,7 @@ setSharedEnv({
   getApp: () => ({ getPath: () => path.join(os.homedir(), '.xingseq', 'chat-app') })
 })
 
-const { createFsHandlers } = await import('../src/fsTools.js')
-const { createShellHandlers } = await import('../src/shellTools.js')
+const { createFsHandlers, createShellHandlers } = await import('@xingseq/chat-core')
 
 const fsH = createFsHandlers({ cwd: SANDBOX })
 const shH = createShellHandlers({ cwd: SANDBOX })

@@ -1,0 +1,48 @@
+{
+  "name": "@xingseq/chat-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L3 对话引擎核心：LLM 对话循环 + 工具派发 + workspace 隔离 + 安全确认",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./chatSession": "./src/chatSession.js",
+    "./chatLoop": "./src/chatLoop.js",
+    "./workspace": "./src/workspace.js",
+    "./workspaceStore": "./src/workspaceStore.js",
+    "./security": "./src/security.js",
+    "./tools/workspace": "./src/tools/workspace.js",
+    "./tools/fs": "./src/tools/fs.js",
+    "./tools/shell": "./src/tools/shell.js",
+    "./tools/web": "./src/tools/web.js"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/config-core": "*",
+    "@xingseq/llm-core": "*",
+    "@xingseq/tool-registry": "*"
+  },
+  "xingseq": {
+    "stage": 3,
+    "status": "ready",
+    "sources": [
+      "apps/chat-app/src/chatSession.js",
+      "apps/chat-app/src/chatLoop.js",
+      "apps/chat-app/src/workspace.js",
+      "apps/chat-app/src/workspaceStore.js",
+      "apps/chat-app/src/security.js",
+      "apps/chat-app/src/tools.js",
+      "apps/chat-app/src/webTools.js",
+      "apps/chat-app/src/fsTools.js",
+      "apps/chat-app/src/shellTools.js"
+    ],
+    "features": [
+      "chat session + tool_calls loop",
+      "workspace isolation + per-workspace store",
+      "built-in tool groups: workspace / fs / shell / web (opt-in)",
+      "security: path/cmd/arg validation",
+      "confirmation manager hookup (CLI/Web 双模)"
+    ]
+  }
+}

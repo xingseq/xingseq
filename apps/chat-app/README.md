@@ -7,6 +7,36 @@ L4 应用：**交互式多轮对话**，含 tool_calls 工具调用循环 + 工�
 - **CLI**：`node src/cli.mjs`（交互式 REPL）
 - **Web**：`npm run server` + `npm run web`（浏览器对话，Vite + React）
 
+## 架构约定：只依赖 IChatProvider 接口
+
+chat-app 是第一个落地 IChatProvider 抽象的 L4 应用 —— cli / server 里 **不直接** import `createChatSession`，而是通过 [provider.mjs](file:///Users/ws/Dev/xingseq/apps/chat-app/src/provider.mjs) 取 IChatProvider 实例：
+
+```js
+import { createProvider } from './provider.mjs'
+
+/** @type {import('@xingseq/chat-core').IChatProvider} */
+const session = createProvider({ workspace, registry })
+
+await session.chat('你好', { onChunk })
+```
+
+| Provider 类型 | 底层实现 | 状态 |
+|---|---|---|
+| `chat-core` (默认) | `createChatSession`（一次→N 次 LLM + 工具循环） | ✅ 已接入 |
+| `ai-butler` | `createAIButler`（多角色协调 Agent） | 🚧 L3 ai-butler 完成后接入 |
+
+切换方式：
+
+```bash
+# 默认 chat-core
+node src/cli.mjs
+
+# 切换 ai-butler（暂未实现，会友好报错）
+XINGSEQ_PROVIDER=ai-butler node src/cli.mjs
+```
+
+切换底层 = 改 `provider.mjs` 一处，cli/server 零改动。契约文档：[@xingseq/chat-core/src/IChatProvider.js](file:///Users/ws/Dev/xingseq/packages/chat-core/src/IChatProvider.js)。
+
 ## 设计要点
 
 **工作区（workspace）是 chat-app 的一等概念。** 每个 workspace 拥有独立的文件目录和对话历史，互不污染。chat-app 启动时若没有任何 workspace，会自动创建名为 `default` 的默认 workspace 并写入欢迎文件，开箱即用。
