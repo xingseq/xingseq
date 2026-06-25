@@ -21,11 +21,11 @@
     "web:install": "npm install --prefix web",
     "web": "npm run dev --prefix web",
     "web:build": "npm run build --prefix web",
-    "mail": "node src/mail-gateway.mjs",
-    "mail:dry": "node src/mail-gateway.mjs --dry",
-    "mail:mock": "node src/mail-gateway.mjs --mock",
-    "mail:test": "node src/mail-gateway.mjs --send-test",
-    "mail:once": "node src/mail-gateway.mjs --once"
+    "mail": "echo '⚠️  邮件功能已迁移到 @xingseq/mail-app，请使用: npm run gateway -w apps/mail-app'",
+    "mail:dry": "npm run gateway:dry -w apps/mail-app",
+    "mail:mock": "npm run gateway:mock -w apps/mail-app",
+    "mail:test": "npm run send-test -w apps/mail-app",
+    "mail:once": "npm run once -w apps/mail-app"
   },
   "dependencies": {
     "@xingseq/shared-utils": "*",

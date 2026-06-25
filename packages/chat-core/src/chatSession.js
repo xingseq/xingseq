@@ -29,6 +29,9 @@ import { FS_TOOLS, createFsHandlers } from './tools/fs.js'
 import { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
 import { EMAIL_TOOLS, createEmailHandlers } from './tools/email.js'
 import { createWorkspaceStore } from './workspaceStore.js'
+import { loadExternalTools } from './toolLoader.js'
+import path from 'node:path'
+import os from 'node:os'
 
 /**
  * 创建一个挂载了 workspace 工具组的 registry
@@ -37,8 +40,9 @@ import { createWorkspaceStore } from './workspaceStore.js'
  * @param {{ filesDir: string }} opts.workspace - 必填
  * @param {string} [opts.groupName='workspace']
  * @param {string} [opts.displayName='工作区工具']
+ * @param {string[]} [opts.toolDirs] - 外部工具目录列表，默认 ['~/.xingseq/tools']
  */
-export function createWorkspaceRegistry({
+export async function createWorkspaceRegistry({
   workspace,
   groupName = 'workspace',
   displayName = '工作区工具',
@@ -46,7 +50,8 @@ export function createWorkspaceRegistry({
   enableFs = true,
   enableShell = true,
   enableEmail = false,
-  emailSendFn = null
+  emailSendFn = null,
+  toolDirs = [path.join(os.homedir(), '.xingseq', 'tools')]
 } = {}) {
   if (!workspace?.filesDir) {
     throw new Error('createWorkspaceRegistry: workspace.filesDir 必填')
@@ -78,13 +83,22 @@ export function createWorkspaceRegistry({
       handlers: createShellHandlers({ cwd: workspace.filesDir })
     })
   }
-  if (enableEmail && emailSendFn) {
+  if (enableEmail) {
     registry.register('email', {
       displayName: '邮件工具',
       tools: EMAIL_TOOLS,
-      handlers: createEmailHandlers({ sendFn: emailSendFn })
+      handlers: createEmailHandlers({ sendFn: emailSendFn || undefined })
     })
   }
+
+  // 自动发现外部工具插件
+  if (toolDirs && toolDirs.length > 0) {
+    const { loaded, skipped } = await loadExternalTools(registry, { toolDirs, workspace })
+    if (loaded.length > 0) {
+      console.log(`[chat-core] 已加载 ${loaded.length} 个外部工具插件: ${loaded.join(', ')}`)
+    }
+  }
+
   return registry
 }
 

@@ -51,9 +51,12 @@ export {
 export { FS_TOOLS, createFsHandlers } from './tools/fs.js'
 export { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
 export { WEB_TOOLS, createWebHandlers } from './tools/web.js'
-export { EMAIL_TOOLS, createEmailHandlers } from './tools/email.js'
+export { EMAIL_TOOLS, createEmailHandlers, createCliSendFn } from './tools/email.js'
 
 // ── 邮件监听（MailGateway 使用） ─────────────────────────────────────────────
 export { EmailMonitor } from './mail/EmailMonitor.js'
 export { MockEmailMonitor } from './mail/MockEmailMonitor.js'
 export * as VirtualMailboxStore from './mail/VirtualMailboxStore.js'
+
+// ── 工具插件动态加载 ──
+export { loadExternalTools, loadPlugin, discoverTools } from './toolLoader.js'

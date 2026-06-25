@@ -130,7 +130,7 @@ if (isList) {
 // ===== 7. 创建会话 =====
 // session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 ai-butler，
 // 这段代码都不需要修改。
-const registry = createWorkspaceRegistry({ workspace })
+const registry = await createWorkspaceRegistry({ workspace })
 /** @type {import('@xingseq/chat-core').IChatProvider} */
 const session = createProvider({
   id: resumeId || undefined,

@@ -1,16 +1,23 @@
 /**
  * chat-core 邮件工具组
  *
- * 迁移自 develop/electron/tools/definitions/emailTools.js + emailExecutor.js
- *
- * 简化：源项目通过 IPC → AgentCommunication → mail-assistant 发邮件，
- * 我们同进程直接调 sendFn（由 MailGateway 注入 EmailMonitor.sendEmail）。
- *
  * 工具：
  *   - send_email(to, subject, body, attachments?)  主动发邮件
  *
+ * 发送方式：
+ *   1. 直接注入 sendFn（mail-app gateway 内部使用）
+ *   2. CLI 模式：通过子进程调 `mail-app send` CLI（chat-app 等外部应用使用）
+ *
  * 安全：send_email 在 DEFAULT_SENSITIVE_TOOLS 中，走确认流程
  */
+
+import { execFile } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+// mail-app CLI 的路径（相对于 monorepo 根目录）
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const MAIL_APP_CLI = path.resolve(__dirname, '../../../../apps/mail-app/src/cli.mjs')
 
 export const sendEmailTool = {
   type: 'function',
@@ -52,16 +59,52 @@ export const sendEmailTool = {
 export const EMAIL_TOOLS = [sendEmailTool]
 
 /**
+ * 通过 mail-app CLI 发邮件（子进程方式）
+ * 供 chat-app 等外部应用使用
+ */
+function createCliSendFn(cliPath = MAIL_APP_CLI) {
+  return (to, subject, body, options = {}) => {
+    return new Promise((resolve) => {
+      const args = ['send', '--to', to, '--subject', subject, '--body', body]
+      if (options.attachments && options.attachments.length > 0) {
+        args.push('--attachments', JSON.stringify(options.attachments))
+      }
+
+      execFile('node', [cliPath, ...args], {
+        timeout: 30000,
+        maxBuffer: 1024 * 1024
+      }, (err, stdout, stderr) => {
+        if (err) {
+          // 尝试从 stdout 解析 JSON 错误
+          try {
+            const result = JSON.parse(stdout || stderr)
+            resolve(result)
+          } catch {
+            resolve({ success: false, error: err.message })
+          }
+          return
+        }
+        try {
+          resolve(JSON.parse(stdout.trim()))
+        } catch {
+          resolve({ success: false, error: `mail-app CLI 输出无法解析: ${stdout}` })
+        }
+      })
+    })
+  }
+}
+
+/**
  * 创建邮件工具处理器
  *
  * @param {object} opts
- * @param {Function} opts.sendFn - 发邮件函数：(to, subject, body, options) => Promise<{success, messageId?, error?}>
- *                                  通常由 MailGateway 注入 EmailMonitor.sendEmail
+ * @param {Function} [opts.sendFn] - 发邮件函数（可选）
+ *   - 提供时：直接调用（mail-app gateway 内部场景）
+ *   - 不提供时：自动通过 mail-app CLI 子进程发送
+ * @param {string} [opts.cliPath] - mail-app CLI 路径（仅 CLI 模式生效）
  */
-export function createEmailHandlers({ sendFn } = {}) {
-  if (typeof sendFn !== 'function') {
-    throw new Error('createEmailHandlers: sendFn 必填（EmailMonitor.sendEmail 或等价函数）')
-  }
+export function createEmailHandlers({ sendFn, cliPath } = {}) {
+  const actualSendFn = sendFn || createCliSendFn(cliPath)
 
   return {
     send_email: async (args = {}) => {
@@ -80,7 +123,7 @@ export function createEmailHandlers({ sendFn } = {}) {
         options.attachments = attachments
       }
 
-      const result = await sendFn(to, subject, body, options)
+      const result = await actualSendFn(to, subject, body, options)
 
       if (!result.success) {
         throw new Error(`邮件发送失败: ${result.error || '未知错误'}`)
@@ -96,3 +139,5 @@ export function createEmailHandlers({ sendFn } = {}) {
     }
   }
 }
+
+export { createCliSendFn }
