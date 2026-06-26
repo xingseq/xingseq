@@ -19,7 +19,9 @@
     "send": "node src/cli.mjs send",
     "send-test": "node src/cli.mjs send-test",
     "once": "node src/cli.mjs once",
-    "test": "node src/cli.mjs once --dry 帮我查一下时间"
+    "test": "node src/cli.mjs once --dry 帮我查一下时间",
+    "test:send": "node test/send.smoke.mjs",
+    "test:send:dry": "node test/send.smoke.mjs --dry"
   },
   "dependencies": {
     "@xingseq/chat-core": "*",
