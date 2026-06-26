@@ -1,0 +1,4 @@
+这是星序 AI 助手通过 mail-app → chat-app 链路自动发送的附件测试文件。
+生成时间: 2026-06-26 22:11:50
+
+此文件用于验证 LLM 能否正确使用 send_email 工具的 attachments 参数。
