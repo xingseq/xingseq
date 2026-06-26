@@ -78,7 +78,10 @@ async function getOrCreateSession(workspaceName, conversationId) {
 
   const ws = resolveWorkspace({ workspace: workspaceName })
   await ensureWorkspace(ws)
-  const registry = await createWorkspaceRegistry({ workspace: ws })
+  const registry = await createWorkspaceRegistry({
+    workspace: ws,
+    enableEmail: true
+  })
   // 这里只声明返回 IChatProvider；具体由 provider.mjs 决定走 chat-core 还是 ai-butler。
   const session = createProvider({
     id: conversationId,
