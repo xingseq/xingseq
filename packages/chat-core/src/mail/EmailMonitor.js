@@ -49,7 +49,15 @@ export class EmailMonitor extends EventEmitter {
     this.reconnecting = false
     this.reconnectResetTimer = null
 
-    this.checkDependencies()
+    this._depsPromise = this.checkDependencies()
+  }
+
+  /**
+   * 等待依赖检查完成
+   */
+  async ready() {
+    await this._depsPromise
+    return this
   }
 
   async checkDependencies() {

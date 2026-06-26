@@ -105,7 +105,7 @@ export async function sendEmail({ to, subject, body, html, attachments, config }
     })
 
     const mailOptions = {
-      from: mailConfig.email || smtpAuth.user,
+      from: `"\u661f\u5e8f AI \u52a9\u624b" <${mailConfig.email || smtpAuth.user}>`,
       to,
       subject,
       text: body,

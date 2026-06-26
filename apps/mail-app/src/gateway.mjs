@@ -2,12 +2,12 @@
 /**
  * mail-app 邮件网关
  *
- * 收到邮件 → IChatProvider.chat(邮件内容) → AI 回复 → SMTP 回复原发件人
+ * 收到邮件 → 调 chat-app CLI/SSE → AI 回复 → SMTP 回复原发件人
  *
  * 架构：
- *   EmailMonitor (IMAP 轮询) → email 事件 → IChatProvider.chat() → AI 回复 → sendEmail() 回复
+ *   EmailMonitor (IMAP 轮询) → email 事件 → chatClient 调 chat-app → AI 回复 → sendEmail() 回复
  *
- * AI 处理过程中可调 send_email 工具给第三方发邮件（走确认流程）。
+ * mail-app 不直接管理 LLM/API Key，统一通过 chat-app 处理 AI 对话。
  *
  * 用法（通过 CLI 路由进入）：
  *   mail-app gateway                    # 真实邮箱 + 真实 LLM
@@ -44,14 +44,10 @@ setSharedEnv({
 const {
   EmailMonitor,
   MockEmailMonitor,
-  VirtualMailboxStore,
-  createWorkspaceRegistry,
-  resolveWorkspace,
-  ensureWorkspace,
-  createChatSession
+  VirtualMailboxStore
 } = await import('@xingseq/chat-core')
-const { createProvider } = await import('./provider.mjs')
 const { loadMailConfig, sendEmail } = await import('./send.mjs')
+const { chatWithAssistant, getConversationId } = await import('./chatClient.mjs')
 
 // ===== 3. 解析参数 =====
 const args = process.argv.slice(2)
@@ -97,58 +93,7 @@ function saveState() {
 
 loadState()
 
-// ===== 6. dry 模式 mock executor =====
-let mockTurn = 0
-function mockExecutor(opts) {
-  const userMsg = [...opts.messages].reverse().find(m => m.role === 'user')?.content || ''
-  const lastIsTool = opts.messages[opts.messages.length - 1]?.role === 'tool'
-
-  if (!lastIsTool && /时间|几点|time|now/i.test(userMsg)) {
-    const id = `call_${Date.now()}_${mockTurn++}`
-    return Promise.resolve({
-      success: true,
-      fullContent: '我来查一下当前时间。',
-      toolCalls: [{
-        id, type: 'function',
-        function: { name: 'get_time', arguments: JSON.stringify({ format: 'locale' }) }
-      }],
-      fragments: [], model: 'mock-model'
-    })
-  }
-  if (!lastIsTool && /发.*邮件|send.*mail|发信/i.test(userMsg)) {
-    const id = `call_${Date.now()}_${mockTurn++}`
-    return Promise.resolve({
-      success: true,
-      fullContent: '好，我帮你发一封邮件。',
-      toolCalls: [{
-        id, type: 'function',
-        function: { name: 'send_email', arguments: JSON.stringify({ to: 'test@example.com', subject: '测试邮件', body: '这是一封测试邮件。' }) }
-      }],
-      fragments: [], model: 'mock-model'
-    })
-  }
-  if (lastIsTool) {
-    const toolMsg = opts.messages[opts.messages.length - 1]
-    const reply = `已处理：${toolMsg.content.slice(0, 200)}`
-    if (opts.onChunk) {
-      for (const ch of reply) opts.onChunk({ type: 'RESPONSE', content: ch, done: false })
-      opts.onChunk({ type: 'RESPONSE', content: '', done: true })
-    }
-    return Promise.resolve({
-      success: true, fullContent: reply, toolCalls: [],
-      fragments: [{ type: 'RESPONSE', content: reply }], model: 'mock-model'
-    })
-  }
-  const reply = `[mock] 已收到你的邮件："${userMsg.slice(0, 100)}"。这是 dry 模式回复。`
-  if (opts.onChunk) {
-    for (const ch of reply) opts.onChunk({ type: 'RESPONSE', content: ch, done: false })
-    opts.onChunk({ type: 'RESPONSE', content: '', done: true })
-  }
-  return Promise.resolve({
-    success: true, fullContent: reply, toolCalls: [],
-    fragments: [{ type: 'RESPONSE', content: reply }], model: 'mock-model'
-  })
-}
+// ===== 6. (已移除 mockExecutor，dry 模式改走 chat-app CLI --once 不加 --live) =====
 
 // ===== 7. 创建邮件监听器 =====
 function createMailMonitor() {
@@ -185,34 +130,7 @@ function createMailMonitor() {
   return monitor
 }
 
-// ===== 8. 创建会话 =====
-async function createMailSession(monitor) {
-  const workspace = resolveWorkspace({ workspace: 'mail-gateway' })
-  ensureWorkspace(workspace)
-
-  // 邮件网关内部发邮件：
-  // - dry/mock 模式：用 monitor.sendEmail（虚拟发送，只写日志）
-  // - live 模式：用 send.mjs 的 sendEmail（真实 SMTP）
-  const emailSendFn = async (to, subject, body, options = {}) => {
-    if (isDry || isMock) {
-      return monitor.sendEmail(to, subject, body, options)
-    }
-    return sendEmail({ to, subject, body, attachments: options.attachments, config: mailConfig })
-  }
-
-  const registry = await createWorkspaceRegistry({
-    workspace,
-    enableEmail: true,
-    emailSendFn
-  })
-
-  const session = createProvider({
-    workspace,
-    registry
-  })
-
-  return { session, workspace }
-}
+// ===== 8. (已移除 createMailSession，所有模式统一通过 chatClient 调 chat-app) =====
 
 // ===== 9. 邮件 → 对话 → 回复 =====
 
@@ -242,7 +160,7 @@ function extractToAddresses(toField) {
   }).filter(Boolean)
 }
 
-async function handleEmail(email, session, monitor) {
+async function handleEmail(email, monitor) {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(`📨 收到邮件`)
   console.log(`   主题: ${email.subject}`)
@@ -280,24 +198,47 @@ async function handleEmail(email, session, monitor) {
   try {
     console.log('🤖 交给 AI 处理...')
 
-    const result = await session.chat(content, {
-      executor: isDry ? mockExecutor : undefined,
-      customParams: {
-        systemPrompt: [
-          '你是一个邮件助手。用户通过邮件与你对话，你的回复将通过邮件直接发送给用户。',
-          '请简洁、清晰地回答用户的问题。',
-          '如果你需要发送邮件给第三方，可以使用 send_email 工具。',
-          '当前工作区可用于读写文件、执行命令。'
-        ].join('\n')
-      },
-      onToolCall: (tc) => {
-        console.log(`  ⚙ 调用工具 ${tc.function.name}(${tc.function.arguments})`)
-      },
-      onToolResult: (tc, res, err) => {
-        if (err) console.log(`  ✗ ${tc.function.name} 失败: ${err.message}`)
-        else console.log(`  ✓ ${tc.function.name} → ${JSON.stringify(res).slice(0, 200)}`)
+    // 统一通过 chatClient 调 chat-app
+    // dry 模式: live=false（chat-app CLI 用 mock LLM）
+    // mock/live 模式: live=true（chat-app CLI 用真实 LLM）
+    const conversationId = getConversationId(email.from)
+    const chatMode = mailConfig.chatMode || 'cli'
+
+    console.log(`   💬 会话: ${conversationId}  模式: ${chatMode}  live: ${!isDry}`)
+
+    const chatResult = await chatWithAssistant({
+      message: content,
+      conversationId,
+      workspace: 'mail-gateway',
+      mode: chatMode,
+      live: !isDry,
+      sseConfig: {
+        host: mailConfig.chatHost || 'localhost',
+        port: mailConfig.chatPort || 3001
       }
     })
+
+    // 打印工具调用日志
+    if (chatResult.toolCalls?.length) {
+      for (const tc of chatResult.toolCalls) {
+        console.log(`  ⚙ 调用工具 ${tc.name}(${tc.arguments})`)
+      }
+    }
+    if (chatResult.toolResults?.length) {
+      for (const tr of chatResult.toolResults) {
+        if (tr.success) {
+          console.log(`  ✓ ${tr.name} → ${JSON.stringify(tr.result).slice(0, 200)}`)
+        } else {
+          console.log(`  ✗ ${tr.name} 失败: ${tr.error}`)
+        }
+      }
+    }
+
+    const result = {
+      success: chatResult.success,
+      fullContent: chatResult.reply,
+      error: chatResult.error ? { message: chatResult.error } : null
+    }
 
     if (!result.success) {
       console.error(`[mail-gateway] AI 处理失败: ${result.error?.message || '未知'}`)
@@ -311,12 +252,10 @@ async function handleEmail(email, session, monitor) {
     const replyResult = await replySend(monitor, email.from, `Re: ${email.subject}`, replyBody)
 
     if (replyResult.success) {
-      console.log(`✅ 回复已发送 → ${email.from}`)
+      console.log(`\u2705 \u56de\u590d\u5df2\u53d1\u9001 \u2192 ${email.from}  messageId: ${replyResult.messageId || 'N/A'}`)
     } else {
-      console.error(`❌ 回复失败: ${replyResult.error}`)
+      console.error(`\u274c \u56de\u590d\u5931\u8d25: ${replyResult.error}`)
     }
-
-    await session.save()
   } catch (err) {
     console.error(`[mail-gateway] 处理邮件异常: ${err.message}`)
     await replySend(
@@ -340,27 +279,40 @@ if (isOnce) {
     process.exit(2)
   }
 
-  console.log(`[mail-app] 单次测试模式  ${isDry ? '(dry)' : isMock ? '(mock)' : '(live)'}`)
+  console.log(`[mail-app] 单次测试模式  ${isDry ? '(dry)' : isMock ? '(mock)' : '(live)'}  live: ${!isDry}`)
 
-  const monitor = createMailMonitor()
-  const { session } = await createMailSession(monitor)
+  // 统一通过 chatClient 调 chat-app
+  const chatMode = mailConfig.chatMode || 'cli'
+  console.log(`[mail-app] 调用 chat-app (${chatMode})...`)
 
-  const result = await session.chat(onceMessage, {
-    executor: isDry ? mockExecutor : undefined,
-    customParams: {
-      systemPrompt: '你是一个邮件助手。请简洁回答。'
-    },
-    onToolCall: (tc) => console.log(`  ⚙ ${tc.function.name}(${tc.function.arguments})`),
-    onToolResult: (tc, res, err) => {
-      if (err) console.log(`  ✗ ${tc.function.name}: ${err.message}`)
-      else console.log(`  ✓ ${tc.function.name} → ${JSON.stringify(res).slice(0, 200)}`)
+  const chatResult = await chatWithAssistant({
+    message: onceMessage,
+    conversationId: `mail-once-test`,
+    workspace: 'mail-gateway',
+    mode: chatMode,
+    live: !isDry,
+    sseConfig: {
+      host: mailConfig.chatHost || 'localhost',
+      port: mailConfig.chatPort || 3001
     }
   })
 
-  if (result.success) {
-    console.log(`\nAI: ${result.fullContent}`)
+  if (chatResult.toolCalls?.length) {
+    for (const tc of chatResult.toolCalls) {
+      console.log(`  ⚙ ${tc.name}(${tc.arguments})`)
+    }
+  }
+  if (chatResult.toolResults?.length) {
+    for (const tr of chatResult.toolResults) {
+      if (tr.success) console.log(`  ✓ ${tr.name} → ${JSON.stringify(tr.result).slice(0, 200)}`)
+      else console.log(`  ✗ ${tr.name}: ${tr.error}`)
+    }
+  }
+
+  if (chatResult.success) {
+    console.log(`\nAI: ${chatResult.reply}`)
   } else {
-    console.error(`\n[错误] ${result.error?.message || '未知'}`)
+    console.error(`\n[错误] ${chatResult.error || '未知'}`)
   }
   process.exit(0)
 }
@@ -371,7 +323,7 @@ console.log('  星序邮件网关 (MailGateway)')
 console.log('═══════════════════════════════════════════')
 
 const monitor = createMailMonitor()
-const { session } = await createMailSession(monitor)
+if (monitor.ready) await monitor.ready()  // EmailMonitor 需等待依赖检查完成
 
 if (monitor.dependenciesAvailable === false) {
   console.error('[mail-gateway] 邮件监听依赖不可用')
@@ -382,7 +334,7 @@ if (monitor.dependenciesAvailable === false) {
 }
 
 monitor.on('email', (email) => {
-  handleEmail(email, session, monitor).catch(err => {
+  handleEmail(email, monitor).catch(err => {
     console.error('[mail-gateway] handleEmail 异常:', err)
   })
 })

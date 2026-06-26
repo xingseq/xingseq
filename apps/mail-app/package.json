@@ -22,11 +22,10 @@
     "test": "node src/cli.mjs once --dry 帮我查一下时间"
   },
   "dependencies": {
-    "@xingseq/shared-utils": "*",
-    "@xingseq/config-core": "*",
-    "@xingseq/llm-core": "*",
-    "@xingseq/tool-registry": "*",
     "@xingseq/chat-core": "*",
+    "@xingseq/shared-utils": "*",
+    "imap": "^0.8.19",
+    "mailparser": "^3.9.12",
     "nodemailer": "^9.0.1"
   },
   "xingseq": {
@@ -36,7 +35,7 @@
       "mail gateway (IMAP poll + SMTP reply)",
       "send email CLI",
       "virtual mailbox (mock/dry testing)",
-      "AI-powered auto-reply via IChatProvider"
+      "AI-powered auto-reply via chat-app CLI/SSE"
     ]
   }
 }

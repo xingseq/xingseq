@@ -8,6 +8,7 @@
  *   node src/cli.mjs --workspace mywork         # 切换/创建名为 mywork 的工作区
  *   node src/cli.mjs --once "你好"              # 单轮 dry 后退出
  *   node src/cli.mjs --once --live "你好"       # 单轮 live 后退出
+ *   node src/cli.mjs --once --live --json "你好" # 单轮 live，输出结构化 JSON
  *   node src/cli.mjs --list                     # 列出当前 workspace 的对话历史
  *   node src/cli.mjs --list-workspaces          # 列出所有 workspace
  *   node src/cli.mjs --resume <id>              # 加载指定对话继续聊
@@ -64,6 +65,7 @@ const { createProvider, resolveProviderType } = await import('./provider.mjs')
 const args = process.argv.slice(2)
 const isLive = args.includes('--live')
 const isOnce = args.includes('--once')
+const isJson = args.includes('--json')
 const isList = args.includes('--list')
 const isListWs = args.includes('--list-workspaces')
 
@@ -75,7 +77,7 @@ const resumeId = readArg('--resume')
 const wsName = readArg('--workspace')
 
 // 普通文本（消息内容）= 排除所有 -- 选项及其后跟的值
-const flagsWithValue = new Set(['--resume', '--workspace'])
+const flagsWithValue = new Set(['--resume', '--workspace', '--workspace-path'])
 const userMessage = args
   .filter((a, i) => {
     if (a.startsWith('--')) return false
@@ -130,7 +132,11 @@ if (isList) {
 // ===== 7. 创建会话 =====
 // session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 ai-butler，
 // 这段代码都不需要修改。
-const registry = await createWorkspaceRegistry({ workspace })
+// --json 模式下启用 email 工具（send_email 走 mail-app CLI 回调）
+const registry = await createWorkspaceRegistry({
+  workspace,
+  enableEmail: isJson
+})
 /** @type {import('@xingseq/chat-core').IChatProvider} */
 const session = createProvider({
   id: resumeId || undefined,
@@ -140,11 +146,12 @@ const session = createProvider({
 
 if (resumeId) {
   const r = await session.load()
-  if (!r.success) {
-    console.error(`加载对话 ${resumeId} 失败：${r.error || '不存在'}`)
-    process.exit(2)
+  if (r.success) {
+    console.log(`已恢复对话 [${resumeId}] - ${session.title}（${session.messages.length} 条消息）`)
+  } else {
+    // 对话不存在时，用指定 ID 创建新对话（不退出）
+    console.log(`[chat-app] 对话 ${resumeId} 不存在，将创建新对话`)
   }
-  console.log(`已恢复对话 [${resumeId}] - ${session.title}（${session.messages.length} 条消息）`)
 }
 
 // ===== 8. dry 模式 mock executor =====
@@ -232,7 +239,12 @@ function mockExecutor(opts) {
 }
 
 // ===== 9. 单轮处理一条消息 =====
+// --json 模式：收集结果，不输出人类可读内容
 async function chatOnce(input) {
+  if (isJson) {
+    return chatOnceJson(input)
+  }
+
   process.stdout.write('AI: ')
   let printed = false
 
@@ -271,12 +283,68 @@ async function chatOnce(input) {
   return true
 }
 
+// --json 模式：静默处理，收集工具调用，输出结构化 JSON
+async function chatOnceJson(input) {
+  const toolCalls = []
+  const toolResults = []
+  let reply = ''
+
+  const result = await session.chat(input, {
+    customParams: {
+      systemPrompt: `你是一个友好的助手。当前工作区为 "${workspace.name}"，根目录: ${workspace.filesDir}。`
+    },
+    executor: isLive ? undefined : mockExecutor,
+    onChunk: ({ type, content, done }) => {
+      if (type === 'RESPONSE' && !done && content) {
+        reply += content
+      }
+    },
+    onToolCall: (tc) => {
+      toolCalls.push({
+        name: tc.function?.name || tc.name,
+        arguments: tc.function?.arguments || tc.arguments
+      })
+    },
+    onToolResult: (tc, res, err) => {
+      toolResults.push({
+        name: tc.function?.name || tc.name,
+        success: !err,
+        result: err ? null : res,
+        error: err ? err.message : null
+      })
+    }
+  })
+
+  const saveResult = await session.save()
+
+  // 输出结构化 JSON（单行，便于解析）
+  process.stdout.write(JSON.stringify({
+    success: result.success,
+    reply: result.fullContent || reply,
+    conversationId: session.id,
+    toolCalls,
+    toolResults,
+    error: result.error?.message || null,
+    saved: saveResult.success,
+    savePath: saveResult.path || null
+  }) + '\n')
+
+  return result.success
+}
+
 // ===== 10. --once 单轮模式 =====
 if (isOnce || (userMessage && !resumeId)) {
   if (!userMessage) {
     console.error('--once 需要带消息内容')
     process.exit(2)
   }
+
+  // --json 模式：静默，chatOnceJson 内部输出 JSON 并 save
+  if (isJson) {
+    const ok = await chatOnceJson(userMessage)
+    process.exit(ok ? 0 : 1)
+  }
+
   console.log(`[模式] ${isLive ? 'live' : 'dry'}  [workspace] ${workspace.name}  [对话] ${session.id}`)
   console.log(`User: ${userMessage}`)
   const ok = await chatOnce(userMessage)

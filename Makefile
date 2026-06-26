@@ -57,19 +57,19 @@ web-dev: ## 一键启动 Web 开发环境（后端 :3001 + 前端 :5173）
 # 邮件网关
 # ---------------------------------------------------------------------------
 mail: ## 启动邮件网关（真实邮箱 + 真实 LLM）
-	npm run mail -w apps/chat-app
+	npm run gateway -w apps/mail-app
 
 mail-dry: ## 启动邮件网关 dry 模式（虚拟邮箱 + mock LLM，完全离线）
-	npm run mail:dry -w apps/chat-app
+	npm run gateway:dry -w apps/mail-app
 
 mail-mock: ## 启动邮件网关 mock 模式（虚拟邮箱 + 真实 LLM）
-	npm run mail:mock -w apps/chat-app
+	npm run gateway:mock -w apps/mail-app
 
 mail-test: ## 向虚拟邮箱投递一封测试邮件
-	npm run mail:test -w apps/chat-app
+	npm run send-test -w apps/mail-app
 
 mail-once: ## 单次对话测试（不启动监听）
-	npm run mail:once -w apps/chat-app
+	npm run once -w apps/mail-app
 
 # ---------------------------------------------------------------------------
 # 构建
