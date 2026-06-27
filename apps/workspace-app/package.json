@@ -1,18 +1,45 @@
 {
   "name": "@xingseq/workspace-app",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "L4 应用：开始操作（WorkspaceChat）",
+  "description": "L4 应用：工作区操作助手（支持挂载本地目录 + 文件读写 + Shell）",
   "main": "src/index.js",
+  "bin": {
+    "workspace-app": "./src/cli.mjs"
+  },
   "exports": {
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "echo \"no tests yet\" && exit 0"
+    "start": "node src/cli.mjs",
+    "dry": "node src/cli.mjs --dry",
+    "live": "node src/cli.mjs --live",
+    "server": "node src/server.mjs",
+    "web:install": "npm install --prefix web",
+    "web": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web",
+    "test": "node test/smoke.test.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/config-core": "*",
+    "@xingseq/llm-core": "*",
+    "@xingseq/memory-store": "*",
+    "@xingseq/tool-registry": "*",
+    "@xingseq/chat-core": "*"
   },
   "xingseq": {
     "stage": 4,
-    "status": "scaffold"
+    "status": "ready",
+    "features": [
+      "workspace mount (absolute path)",
+      "file read/write tools",
+      "shell execution",
+      "safety confirmation (4-layer)",
+      "http+sse server",
+      "web frontend (vite+react)",
+      "file tree panel"
+    ]
   }
 }

@@ -22,11 +22,11 @@ L1 基座     | shared-utils · config-core · storage-core · llm-core
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 0 | 建工作区骨架（占位包 + scaffold 脚本 + workspaces 配置） | 进行中 |
-| 1 | 迁入 L1 基座代码（shared-utils → config-core → storage-core → llm-core） | 待开始 |
-| 2 | 迁入 L2 领域服务 | 待开始 |
-| 3 | 迁入 L3 能力层 | 待开始 |
-| 4 | 拆 L4 应用层 + electron-shell | 待开始 |
+| 0 | 建工作区骨架（占位包 + scaffold 脚本 + workspaces 配置） | ✅ 完成 |
+| 1 | 迁入 L1 基座代码（shared-utils → config-core → storage-core → llm-core） | ✅ 完成 |
+| 2 | 迁入 L2 领域服务 | ✅ 完成 |
+| 3 | 迁入 L3 能力层（chat-core 已落地，agent-runtime/ai-butler 待迁入） | 进行中 |
+| 4 | 拆 L4 应用层（chat-app ✅ · mail-app ✅ · workspace-app ✅ · 其余待迁入） | 进行中 |
 | 5 | 依赖图审计、清理 re-export 适配层 | 待开始 |
 
 详细蓝图见 `docs/split-plan.md`（后续补齐）。
