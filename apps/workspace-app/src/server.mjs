@@ -319,12 +319,12 @@ async function route(req, res) {
       return res.end()
     }
 
-    // 独立确认管理器（30s 倒计时）
+    // 独立确认管理器（5s 倒计时）
     const localManager = createConfirmationManager({
       isCLI: false,
       countdownConfigReader: async () => ({
         enabled: true,
-        seconds: 30,
+        seconds: 5,
         applyToTools: [
           'set_file_content',
           'replace_file_string',

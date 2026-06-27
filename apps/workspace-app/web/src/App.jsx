@@ -451,7 +451,7 @@ export default function App() {
               <button className="btn-allow" onClick={() => handleConfirm(true)}>允许执行</button>
               <button className="btn-deny" onClick={() => handleConfirm(false)}>拒绝</button>
             </div>
-            <p className="confirm-hint">30 秒后将自动执行</p>
+            <p className="confirm-hint">5 秒后将自动执行</p>
           </div>
         </div>
       )}
