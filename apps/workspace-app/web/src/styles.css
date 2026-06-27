@@ -72,6 +72,20 @@ body {
   cursor: pointer;
 }
 .btn-mount:hover { background: var(--accent-hover); }
+.ws-current {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.ws-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* 主区域 */
 .main {

@@ -309,22 +309,33 @@ export default function App() {
       <header className="header">
         <h1>workspace-app</h1>
         <div className="ws-selector">
-          <select
-            value={workspacePath || workspace}
-            onChange={e => {
-              const selected = workspaces.find(w =>
-                w.mounted ? w.root === e.target.value : w.name === e.target.value
-              )
-              if (selected) selectWorkspace(selected)
-            }}
-          >
-            {workspaces.map(w => (
-              <option key={w.mounted ? w.root : w.name} value={w.mounted ? w.root : w.name}>
-                {w.name}{w.mounted ? ' 📁' : ''}
-              </option>
-            ))}
-            {workspaces.length === 0 && <option value="default">default</option>}
-          </select>
+          <div className="ws-current">
+            <select
+              value={workspacePath || workspace}
+              onChange={e => {
+                const selected = workspaces.find(w =>
+                  w.mounted ? w.root === e.target.value : w.name === e.target.value
+                )
+                if (selected) selectWorkspace(selected)
+              }}
+            >
+              {workspaces.map(w => (
+                <option
+                  key={w.mounted ? w.root : w.name}
+                  value={w.mounted ? w.root : w.name}
+                  title={w.mounted ? w.root : ''}
+                >
+                  {w.name}{w.mounted ? ' 📁' : ''}
+                </option>
+              ))}
+              {workspaces.length === 0 && <option value="default">default</option>}
+            </select>
+            {workspacePath && (
+              <span className="ws-path" title={workspacePath}>
+                {workspacePath}
+              </span>
+            )}
+          </div>
           <button className="btn-mount" onClick={() => setShowMount(true)} title="挂载本地目录">
             + 挂载
           </button>
