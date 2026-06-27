@@ -33,6 +33,30 @@ export default function App() {
 
   // 确认弹窗
   const [pendingConfirm, setPendingConfirm] = useState(null)
+  const [countdownLeft, setCountdownLeft] = useState(0)
+  const [countdownTotal, setCountdownTotal] = useState(0)
+
+  // 确认弹窗倒计时（秒数从后端 payload.countdown 读取，进度条由 CSS 动画驱动）
+  useEffect(() => {
+    if (!pendingConfirm || !pendingConfirm.countdown) return
+    const total = pendingConfirm.countdown
+    setCountdownTotal(total)
+    setCountdownLeft(total)
+    const start = Date.now()
+    const timer = setInterval(() => {
+      const left = Math.max(0, total - Math.floor((Date.now() - start) / 1000))
+      setCountdownLeft(left)
+      if (left <= 0) {
+        clearInterval(timer)
+        setPendingConfirm(null) // 倒计时结束，后端将自动执行，关闭弹窗
+      }
+    }, 250)
+    return () => {
+      clearInterval(timer)
+      setCountdownTotal(0)
+      setCountdownLeft(0)
+    }
+  }, [pendingConfirm])
 
   // 挂载目录弹窗
   const [showMount, setShowMount] = useState(false)
@@ -451,7 +475,18 @@ export default function App() {
               <button className="btn-allow" onClick={() => handleConfirm(true)}>允许执行</button>
               <button className="btn-deny" onClick={() => handleConfirm(false)}>拒绝</button>
             </div>
-            <p className="confirm-hint">5 秒后将自动执行</p>
+            {countdownTotal > 0 && (
+              <div className="confirm-progress">
+                <div
+                  className="confirm-progress-bar"
+                  key={pendingConfirm.confirmId}
+                  style={{ animationDuration: `${countdownTotal}s` }}
+                />
+              </div>
+            )}
+            <p className="confirm-hint">
+              {countdownLeft > 0 ? `${countdownLeft} 秒后将自动执行` : '正在自动执行…'}
+            </p>
           </div>
         </div>
       )}
