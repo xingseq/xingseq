@@ -48,6 +48,7 @@ cd web && npm install && npm run dev
 |------|------|------|
 | GET | /api/health | 健康检查 |
 | GET | /api/workspaces | 工作区列表 |
+| POST | /api/workspace/mount | 挂载绝对路径为工作区 |
 | GET | /api/files?workspace=&path= | 文件树 |
 | GET | /api/file?workspace=&path= | 读取单文件 |
 | GET | /api/conversations?workspace= | 对话列表 |
@@ -58,6 +59,8 @@ cd web && npm install && npm run dev
 | POST | /api/confirm | 确认/拒绝敏感操作 |
 
 支持通过 `workspacePath` 查询参数传入绝对路径挂载。
+
+Web 前端顶栏提供「+ 挂载」按钮，可输入任意绝对路径并即时切换工作区；已挂载目录会保存在 `~/.xingseq/workspace-app/memory/<hash>/meta.json` 中，下次启动仍可从下拉框选择。
 
 ## 架构
 

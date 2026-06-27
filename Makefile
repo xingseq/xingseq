@@ -72,13 +72,50 @@ mail-once: ## 单次对话测试（不启动监听）
 	npm run once -w apps/mail-app
 
 # ---------------------------------------------------------------------------
+# 工作区助手 (workspace-app)
+# ---------------------------------------------------------------------------
+.PHONY: ws ws-dry ws-live ws-list ws-server ws-web ws-web-install ws-web-dev ws-test
+ws: ## 启动 workspace-app CLI 交互模式
+	npm start -w apps/workspace-app
+
+ws-dry: ## workspace-app dry-run 模式
+	npm run dry -w apps/workspace-app
+
+ws-live: ## workspace-app live 模式
+	npm run live -w apps/workspace-app
+
+ws-list: ## 列出 workspace-app 可用工具
+	npm run list -w apps/workspace-app
+
+ws-server: ## 启动 workspace-app HTTP+SSE 后端（:3002）
+	npm run server -w apps/workspace-app
+
+ws-web: ## 启动 workspace-app Web 前端（Vite :5174）
+	npm run web -w apps/workspace-app
+
+ws-web-install: ## 安装 workspace-app 前端依赖（首次）
+	npm run web:install -w apps/workspace-app
+
+ws-web-dev: ## 一键启动 workspace-app Web 开发环境（后端 :3002 + 前端 :5174）
+	@echo "启动中... 浏览器打开 http://localhost:5174（Ctrl+C 退出）"
+	@trap 'kill 0' EXIT; \
+	npm run server -w apps/workspace-app & \
+	npm run web -w apps/workspace-app
+
+ws-test: ## 运行 workspace-app 烟雾测试
+	npm test -w apps/workspace-app
+
+# ---------------------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------------------
-.PHONY: build web-build
-build: web-build ## 构建所有产物
+.PHONY: build web-build ws-web-build
+build: web-build ws-web-build ## 构建所有产物
 
-web-build: ## 构建 Web 前端
+web-build: ## 构建 chat-app Web 前端
 	npm run web:build -w apps/chat-app
+
+ws-web-build: ## 构建 workspace-app Web 前端
+	npm run web:build -w apps/workspace-app
 
 # ---------------------------------------------------------------------------
 # 代码质量

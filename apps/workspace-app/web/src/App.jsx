@@ -11,6 +11,7 @@ import { chatStream, fetchJSON } from './sseClient.js'
 export default function App() {
   const [workspaces, setWorkspaces] = useState([])
   const [workspace, setWorkspace] = useState('default')
+  const [workspacePath, setWorkspacePath] = useState(null)
 
   const [conversations, setConversations] = useState([])
   const [currentId, setCurrentId] = useState(null)
@@ -33,10 +34,42 @@ export default function App() {
   // 确认弹窗
   const [pendingConfirm, setPendingConfirm] = useState(null)
 
+  // 挂载目录弹窗
+  const [showMount, setShowMount] = useState(false)
+  const [mountPath, setMountPath] = useState('')
+  const [mounting, setMounting] = useState(false)
+
+  // 构造 workspace 查询参数
+  const workspaceQs = (extra = {}) => {
+    const params = new URLSearchParams(extra)
+    if (workspacePath) params.set('workspacePath', workspacePath)
+    else params.set('workspace', workspace)
+    return params.toString()
+  }
+
+  const selectWorkspace = (ws) => {
+    if (ws.mounted) {
+      setWorkspace(ws.name)
+      setWorkspacePath(ws.root)
+    } else {
+      setWorkspace(ws.name)
+      setWorkspacePath(null)
+    }
+  }
+
   // ===== 拉 workspace 列表 =====
   useEffect(() => {
     fetchJSON('/api/workspaces')
-      .then(d => setWorkspaces(d.workspaces || []))
+      .then(d => {
+        const list = d.workspaces || []
+        setWorkspaces(list)
+        // 若当前 workspace 不在列表中，默认选中第一个
+        const currentKey = workspacePath || workspace
+        const exists = list.some(w => (w.mounted ? w.root : w.name) === currentKey)
+        if (!exists && list.length > 0) {
+          selectWorkspace(list[0])
+        }
+      })
       .catch(e => setError(e.message))
   }, [])
 
@@ -50,18 +83,18 @@ export default function App() {
     setSelectedFile(null)
     refreshConversations()
     refreshFiles('.')
-  }, [workspace])
+  }, [workspace, workspacePath])
 
   async function refreshConversations() {
     try {
-      const data = await fetchJSON(`/api/conversations?workspace=${encodeURIComponent(workspace)}`)
+      const data = await fetchJSON(`/api/conversations?${workspaceQs()}`)
       setConversations(data.conversations || [])
     } catch (e) { setError(e.message) }
   }
 
   async function refreshFiles(dirPath) {
     try {
-      const data = await fetchJSON(`/api/files?workspace=${encodeURIComponent(workspace)}&path=${encodeURIComponent(dirPath)}`)
+      const data = await fetchJSON(`/api/files?${workspaceQs({ path: dirPath })}`)
       if (dirPath === '.') {
         setFileTree(data.items || [])
       }
@@ -81,7 +114,7 @@ export default function App() {
     } else {
       setSelectedFile(item)
       try {
-        const data = await fetchJSON(`/api/file?workspace=${encodeURIComponent(workspace)}&path=${encodeURIComponent(item.path)}`)
+        const data = await fetchJSON(`/api/file?${workspaceQs({ path: item.path })}`)
         setFileContent(data.content || '')
       } catch (e) { setError(e.message) }
     }
@@ -91,7 +124,7 @@ export default function App() {
   async function handleNew() {
     try {
       const data = await fetchJSON(
-        `/api/conversation/new?workspace=${encodeURIComponent(workspace)}`,
+        `/api/conversation/new?${workspaceQs()}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
       )
       setCurrentId(data.id)
@@ -105,7 +138,7 @@ export default function App() {
   async function handleSelect(id) {
     if (id === currentId) return
     try {
-      const data = await fetchJSON(`/api/conversation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspace)}`)
+      const data = await fetchJSON(`/api/conversation/${encodeURIComponent(id)}?${workspaceQs()}`)
       setCurrentId(id)
       setCurrentTitle(data.title || id)
       setMessages(data.messages || [])
@@ -117,7 +150,7 @@ export default function App() {
     e.stopPropagation()
     if (!confirm(`删除对话 ${id}？`)) return
     try {
-      await fetch(`/api/conversation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' })
+      await fetch(`/api/conversation/${encodeURIComponent(id)}?${workspaceQs()}`, { method: 'DELETE' })
       if (id === currentId) { setCurrentId(null); setMessages([]) }
       await refreshConversations()
     } catch (err) { setError(err.message) }
@@ -131,7 +164,7 @@ export default function App() {
     let convId = currentId
     if (!convId) {
       const data = await fetchJSON(
-        `/api/conversation/new?workspace=${encodeURIComponent(workspace)}`,
+        `/api/conversation/new?${workspaceQs()}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
       ).catch(e => { setError(e.message); return null })
       if (!data) return
@@ -149,6 +182,7 @@ export default function App() {
     try {
       await chatStream({
         workspace,
+        workspacePath,
         conversationId: convId,
         message: text,
         onEvent: ({ event, data }) => {
@@ -211,6 +245,34 @@ export default function App() {
     setPendingConfirm(null)
   }
 
+  // 挂载新目录
+  async function handleMount() {
+    const p = mountPath.trim()
+    if (!p) return
+    setMounting(true)
+    setError(null)
+    try {
+      const data = await fetchJSON('/api/workspace/mount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: p })
+      })
+      const ws = data.workspace
+      if (ws) {
+        await fetchJSON('/api/workspaces')
+          .then(d => setWorkspaces(d.workspaces || []))
+          .catch(e => setError(e.message))
+        selectWorkspace({ name: ws.name, root: ws.root, mounted: true })
+      }
+      setShowMount(false)
+      setMountPath('')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setMounting(false)
+    }
+  }
+
   // 滚动到底部
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -223,14 +285,25 @@ export default function App() {
       <header className="header">
         <h1>workspace-app</h1>
         <div className="ws-selector">
-          <select value={workspace} onChange={e => setWorkspace(e.target.value)}>
+          <select
+            value={workspacePath || workspace}
+            onChange={e => {
+              const selected = workspaces.find(w =>
+                w.mounted ? w.root === e.target.value : w.name === e.target.value
+              )
+              if (selected) selectWorkspace(selected)
+            }}
+          >
             {workspaces.map(w => (
-              <option key={w.name} value={w.name}>
+              <option key={w.mounted ? w.root : w.name} value={w.mounted ? w.root : w.name}>
                 {w.name}{w.mounted ? ' 📁' : ''}
               </option>
             ))}
             {workspaces.length === 0 && <option value="default">default</option>}
           </select>
+          <button className="btn-mount" onClick={() => setShowMount(true)} title="挂载本地目录">
+            + 挂载
+          </button>
         </div>
       </header>
 
@@ -334,6 +407,38 @@ export default function App() {
           </div>
         </section>
       </div>
+
+      {/* 挂载目录弹窗 */}
+      {showMount && (
+        <div className="confirm-overlay">
+          <div className="confirm-dialog mount-dialog">
+            <h3>挂载本地目录</h3>
+            <p>输入绝对路径作为工作区：</p>
+            <input
+              type="text"
+              className="mount-input"
+              value={mountPath}
+              onChange={e => setMountPath(e.target.value)}
+              placeholder="/Users/ws/Dev/your-project"
+              onKeyDown={e => { if (e.key === 'Enter') handleMount() }}
+              autoFocus
+            />
+            {error && <div className="error">{error}</div>}
+            <div className="confirm-actions">
+              <button
+                className="btn-allow"
+                onClick={handleMount}
+                disabled={mounting || !mountPath.trim()}
+              >
+                {mounting ? '挂载中…' : '确认挂载'}
+              </button>
+              <button className="btn-deny" onClick={() => { setShowMount(false); setMountPath('') }}>
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 确认弹窗 */}
       {pendingConfirm && (

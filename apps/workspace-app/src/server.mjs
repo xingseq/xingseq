@@ -181,6 +181,28 @@ async function route(req, res) {
     })
   }
 
+  // POST /api/workspace/mount  挂载任意绝对路径为工作区
+  if (method === 'POST' && pathname === '/api/workspace/mount') {
+    const body = await readBody(req).catch(() => ({}))
+    const mountPath = body.path || body.workspacePath
+    if (!mountPath) {
+      return sendJSON(res, 400, { error: '缺少 path 参数' })
+    }
+    if (!path.isAbsolute(mountPath)) {
+      return sendJSON(res, 400, { error: `path 必须是绝对路径: "${mountPath}"` })
+    }
+    try {
+      const ws = resolveWorkspace({ workspacePath: mountPath })
+      await ensureWorkspace(ws)
+      await saveMountMeta(ws)
+      return sendJSON(res, 200, {
+        workspace: { name: ws.name, root: ws.root, filesDir: ws.filesDir, mounted: true }
+      })
+    } catch (err) {
+      return sendJSON(res, 400, { error: err.message })
+    }
+  }
+
   // files tree
   if (method === 'GET' && pathname === '/api/files') {
     const wsOpts = parseWsOpts(url)

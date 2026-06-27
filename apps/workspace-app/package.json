@@ -15,6 +15,7 @@
     "start": "node src/cli.mjs",
     "dry": "node src/cli.mjs --dry",
     "live": "node src/cli.mjs --live",
+    "list": "node src/cli.mjs --list",
     "server": "node src/server.mjs",
     "web:install": "npm install --prefix web",
     "web": "npm run dev --prefix web",
