@@ -8,6 +8,51 @@ import { chatStream, fetchJSON } from './sseClient.js'
  * 顶部：工作区信息 + 对话列表切换
  */
 
+/** 递归目录树节点 */
+function TreeNode({ item, depth, expandedDirs, loadingDirs, selectedFile, onToggle, onClick }) {
+  const isDir = item.type === 'dir'
+  const isExpanded = expandedDirs.has(item.path)
+  const isLoading = loadingDirs.has(item.path)
+  const isActive = selectedFile?.path === item.path
+
+  return (
+    <>
+      <div
+        className={`file-item ${item.type}${isActive ? ' active' : ''}${isExpanded ? ' expanded' : ''}`}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        onClick={() => onClick(item)}
+        title={item.path}
+      >
+        {isDir && (
+          <span className={`tree-arrow${isExpanded ? ' open' : ''}`}>▶</span>
+        )}
+        <span className="file-icon">{isDir ? (isExpanded ? '📂' : '📁') : '📄'}</span>
+        <span className="file-name">{item.name}</span>
+        {isLoading && <span className="tree-spinner">⋯</span>}
+      </div>
+      {isDir && isExpanded && item.children && (
+        <div className="tree-children">
+          {item.children.map(child => (
+            <TreeNode
+              key={child.path}
+              item={child}
+              depth={depth + 1}
+              expandedDirs={expandedDirs}
+              loadingDirs={loadingDirs}
+              selectedFile={selectedFile}
+              onToggle={onToggle}
+              onClick={onClick}
+            />
+          ))}
+          {item.children.length === 0 && (
+            <div className="empty" style={{ paddingLeft: `${12 + (depth + 1) * 16}px` }}>（空）</div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function App() {
   const [workspaces, setWorkspaces] = useState([])
   const [workspace, setWorkspace] = useState('default')
@@ -18,9 +63,10 @@ export default function App() {
   const [currentTitle, setCurrentTitle] = useState('')
   const [messages, setMessages] = useState([])
 
-  // 文件树
+  // 文件树（递归结构：每个节点 { name, path, type, children?: [], loaded?: bool }）
   const [fileTree, setFileTree] = useState([])
   const [expandedDirs, setExpandedDirs] = useState(new Set())
+  const [loadingDirs, setLoadingDirs] = useState(new Set())
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileContent, setFileContent] = useState('')
 
@@ -116,25 +162,68 @@ export default function App() {
     } catch (e) { setError(e.message) }
   }
 
+  /** 排序：目录在前，同类按名称排序 */
+  function sortItems(items) {
+    return [...items].sort((a, b) => {
+      if (a.type === b.type) return a.name.localeCompare(b.name)
+      return a.type === 'dir' ? -1 : 1
+    })
+  }
+
   async function refreshFiles(dirPath) {
     try {
       const data = await fetchJSON(`/api/files?${workspaceQs({ path: dirPath })}`)
+      const items = sortItems(data.items || [])
       if (dirPath === '.') {
-        setFileTree(data.items || [])
+        setFileTree(items)
       }
-      return data.items || []
+      return items
     } catch (e) { setError(e.message); return [] }
+  }
+
+  /** 展开/折叠目录，懒加载子目录内容 */
+  async function toggleDir(item) {
+    const newExpanded = new Set(expandedDirs)
+    if (newExpanded.has(item.path)) {
+      newExpanded.delete(item.path)
+      setExpandedDirs(newExpanded)
+    } else {
+      newExpanded.add(item.path)
+      setExpandedDirs(newExpanded)
+      // 如果尚未加载子目录内容则拉取
+      if (!item.children) {
+        setLoadingDirs(prev => new Set(prev).add(item.path))
+        try {
+          const children = await refreshFiles(item.path)
+          // 将 children 写入树节点
+          setFileTree(prev => injectChildren(prev, item.path, children))
+        } finally {
+          setLoadingDirs(prev => {
+            const s = new Set(prev)
+            s.delete(item.path)
+            return s
+          })
+        }
+      }
+    }
+  }
+
+  /** 递归向文件树中注入子节点 */
+  function injectChildren(tree, targetPath, children) {
+    return tree.map(node => {
+      if (node.path === targetPath) {
+        return { ...node, children, loaded: true }
+      }
+      if (node.children) {
+        return { ...node, children: injectChildren(node.children, targetPath, children) }
+      }
+      return node
+    })
   }
 
   async function handleFileClick(item) {
     if (item.type === 'dir') {
-      const newExpanded = new Set(expandedDirs)
-      if (newExpanded.has(item.path)) {
-        newExpanded.delete(item.path)
-      } else {
-        newExpanded.add(item.path)
-      }
-      setExpandedDirs(newExpanded)
+      toggleDir(item)
     } else {
       setSelectedFile(item)
       try {
@@ -347,24 +436,29 @@ export default function App() {
         <aside className="sidebar file-panel">
           <div className="panel-header">
             <span>📂 文件</span>
-            <button onClick={() => refreshFiles('.')} title="刷新">↻</button>
+            <button onClick={() => { setExpandedDirs(new Set()); refreshFiles('.') }} title="刷新">↻</button>
           </div>
           <div className="file-tree">
-            {fileTree.map(item => (
-              <div
-                key={item.path}
-                className={`file-item ${item.type} ${selectedFile?.path === item.path ? 'active' : ''}`}
-                onClick={() => handleFileClick(item)}
-              >
-                <span className="file-icon">{item.type === 'dir' ? '📁' : '📄'}</span>
-                <span className="file-name">{item.name}</span>
-              </div>
-            ))}
             {fileTree.length === 0 && <div className="empty">（空目录）</div>}
+            {fileTree.map(item => (
+              <TreeNode
+                key={item.path}
+                item={item}
+                depth={0}
+                expandedDirs={expandedDirs}
+                loadingDirs={loadingDirs}
+                selectedFile={selectedFile}
+                onToggle={toggleDir}
+                onClick={handleFileClick}
+              />
+            ))}
           </div>
           {selectedFile && (
             <div className="file-preview">
-              <div className="preview-header">{selectedFile.name}</div>
+              <div className="preview-header">
+                <span>{selectedFile.name}</span>
+                <button onClick={() => { setSelectedFile(null); setFileContent('') }} title="关闭">×</button>
+              </div>
               <pre className="preview-content">{fileContent}</pre>
             </div>
           )}

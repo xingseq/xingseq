@@ -128,14 +128,50 @@ body {
 .file-item {
   display: flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 5px 12px;
   cursor: pointer;
   font-size: 13px;
-  gap: 6px;
+  gap: 5px;
+  transition: background 0.15s;
+  user-select: none;
 }
 .file-item:hover { background: var(--bg-tertiary); }
 .file-item.active { background: var(--bg-tertiary); color: var(--accent); }
-.file-icon { font-size: 14px; }
+.file-item.dir { font-weight: 500; }
+.file-icon { font-size: 14px; flex-shrink: 0; }
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 展开/折叠箭头 */
+.tree-arrow {
+  display: inline-flex;
+  font-size: 10px;
+  width: 14px;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+.tree-arrow.open {
+  transform: rotate(90deg);
+}
+
+/* 加载中指示 */
+.tree-spinner {
+  font-size: 12px;
+  color: var(--text-muted);
+  animation: pulse 1s infinite;
+  margin-left: auto;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* 子节点容器 */
+.tree-children {
+  overflow: hidden;
+}
 
 .file-preview {
   border-top: 1px solid var(--border);
@@ -143,11 +179,23 @@ body {
   overflow-y: auto;
 }
 .preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   background: var(--bg-tertiary);
 }
+.preview-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.preview-header button:hover { color: var(--danger); }
 .preview-content {
   padding: 8px 12px;
   font-size: 12px;
