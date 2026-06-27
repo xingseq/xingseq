@@ -456,3 +456,56 @@ body {
 .mount-dialog {
   max-width: 560px;
 }
+
+/* 右键菜单 */
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  padding: 4px 0;
+  min-width: 160px;
+  animation: ctxFadeIn 0.12s ease-out;
+}
+@keyframes ctxFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.ctx-menu-item {
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.ctx-menu-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+}
+
+/* 拖拽文件到输入区 */
+.input-area.drag-over {
+  background: rgba(79, 195, 247, 0.08);
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  transition: background 0.15s, border 0.15s;
+}
+.drop-hint {
+  text-align: center;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 4px 0 0;
+  animation: ctxFadeIn 0.15s ease-out;
+}
+
+/* 可拖拽树节点光标 */
+.file-item[draggable="true"] {
+  cursor: grab;
+}
+.file-item[draggable="true"]:active {
+  cursor: grabbing;
+  opacity: 0.6;
+}

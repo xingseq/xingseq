@@ -9,7 +9,7 @@ import { chatStream, fetchJSON } from './sseClient.js'
  */
 
 /** 递归目录树节点 */
-function TreeNode({ item, depth, expandedDirs, loadingDirs, selectedFile, onToggle, onClick }) {
+function TreeNode({ item, depth, expandedDirs, loadingDirs, selectedFile, onToggle, onClick, onContextMenu, onDragStart }) {
   const isDir = item.type === 'dir'
   const isExpanded = expandedDirs.has(item.path)
   const isLoading = loadingDirs.has(item.path)
@@ -21,6 +21,9 @@ function TreeNode({ item, depth, expandedDirs, loadingDirs, selectedFile, onTogg
         className={`file-item ${item.type}${isActive ? ' active' : ''}${isExpanded ? ' expanded' : ''}`}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={() => onClick(item)}
+        onContextMenu={e => onContextMenu(e, item)}
+        draggable
+        onDragStart={e => onDragStart(e, item)}
         title={item.path}
       >
         {isDir && (
@@ -42,6 +45,8 @@ function TreeNode({ item, depth, expandedDirs, loadingDirs, selectedFile, onTogg
               selectedFile={selectedFile}
               onToggle={onToggle}
               onClick={onClick}
+              onContextMenu={onContextMenu}
+              onDragStart={onDragStart}
             />
           ))}
           {item.children.length === 0 && (
@@ -108,6 +113,11 @@ export default function App() {
   const [showMount, setShowMount] = useState(false)
   const [mountPath, setMountPath] = useState('')
   const [mounting, setMounting] = useState(false)
+
+  // 右键菜单 & 拖拽
+  const [ctxMenu, setCtxMenu] = useState(null) // { x, y, item } | null
+  const [dragOver, setDragOver] = useState(false)
+  const inputRef = useRef(null)
 
   // 构造 workspace 查询参数
   const workspaceQs = (extra = {}) => {
@@ -231,6 +241,98 @@ export default function App() {
         setFileContent(data.content || '')
       } catch (e) { setError(e.message) }
     }
+  }
+
+  // ===== 路径计算 =====
+  /** 将相对路径转为绝对路径 */
+  function getAbsPath(item) {
+    if (!workspacePath) return item.path
+    if (item.path === '.') return workspacePath
+    return `${workspacePath.replace(/\/$/, '')}/${item.path}`
+  }
+
+  // ===== 右键菜单 =====
+  function handleCtxMenu(e, item) {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, item })
+  }
+
+  function closeCtxMenu() {
+    setCtxMenu(null)
+  }
+
+  async function handleCopyPath() {
+    if (!ctxMenu) return
+    const absPath = getAbsPath(ctxMenu.item)
+    try {
+      await navigator.clipboard.writeText(absPath)
+    } catch {
+      // 备用：创建临时 input 复制
+      const tmp = document.createElement('input')
+      tmp.value = absPath
+      document.body.appendChild(tmp)
+      tmp.select()
+      document.execCommand('copy')
+      document.body.removeChild(tmp)
+    }
+    closeCtxMenu()
+  }
+
+  async function handleCopyName() {
+    if (!ctxMenu) return
+    try {
+      await navigator.clipboard.writeText(ctxMenu.item.name)
+    } catch {
+      const tmp = document.createElement('input')
+      tmp.value = ctxMenu.item.name
+      document.body.appendChild(tmp)
+      tmp.select()
+      document.execCommand('copy')
+      document.body.removeChild(tmp)
+    }
+    closeCtxMenu()
+  }
+
+  // 点击任意处关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = () => closeCtxMenu()
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [ctxMenu])
+
+  // ===== 拖拽文件树节点到输入框 =====
+  function handleDragStart(e, item) {
+    const absPath = getAbsPath(item)
+    e.dataTransfer.setData('text/plain', absPath)
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragOver(true)
+  }
+
+  function handleDragLeave() {
+    setDragOver(false)
+  }
+
+  function handleDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    const text = e.dataTransfer.getData('text/plain')
+    if (!text) return
+    // 插入路径到输入框光标位置（或追加）
+    setInput(prev => {
+      if (!prev) return text
+      // 末尾有空格或换行则直接追加，否则加空格分隔
+      if (/[\s]$/.test(prev)) return prev + text
+      return prev + ' ' + text
+    })
+    // 聚焦输入框
+    inputRef.current?.focus()
   }
 
   // ===== 对话管理 =====
@@ -450,6 +552,8 @@ export default function App() {
                 selectedFile={selectedFile}
                 onToggle={toggleDir}
                 onClick={handleFileClick}
+                onContextMenu={handleCtxMenu}
+                onDragStart={handleDragStart}
               />
             ))}
           </div>
@@ -518,14 +622,21 @@ export default function App() {
           </div>
 
           {/* 输入区 */}
-          <div className="input-area">
+          <div
+            className={`input-area${dragOver ? ' drag-over' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {error && <div className="error">{error}</div>}
+            {dragOver && <div className="drop-hint">松开以插入文件路径</div>}
             <div className="input-row">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
+                placeholder="输入消息…（Enter 发送，Shift+Enter 换行；可拖拽左侧文件到此处）"
                 disabled={busy}
                 rows={2}
               />
@@ -592,6 +703,22 @@ export default function App() {
             <p className="confirm-hint">
               {countdownLeft > 0 ? `${countdownLeft} 秒后将自动执行` : '正在自动执行…'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* 右键菜单 */}
+      {ctxMenu && (
+        <div
+          className="ctx-menu"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="ctx-menu-item" onClick={handleCopyPath}>
+            📋 复制完整路径
+          </div>
+          <div className="ctx-menu-item" onClick={handleCopyName}>
+            📄 复制文件名
           </div>
         </div>
       )}
