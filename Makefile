@@ -106,6 +106,18 @@ ws-test: ## 运行 workspace-app 烟雾测试
 	npm test -w apps/workspace-app
 
 # ---------------------------------------------------------------------------
+# Electron 桌面壳
+# ---------------------------------------------------------------------------
+.PHONY: electron electron-build
+
+electron: ## 启动 Electron 桌面壳（需先构建 workspace-app 前端）
+	npm start -w apps/electron-shell
+
+electron-build: ## 构建 workspace-app 前端并启动 Electron 桌面壳
+	npm run build -w apps/electron-shell
+	npm start -w apps/electron-shell
+
+# ---------------------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------------------
 .PHONY: build web-build ws-web-build

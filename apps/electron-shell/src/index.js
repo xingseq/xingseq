@@ -1,7 +1,6 @@
 /**
  * @xingseq/electron-shell
- * L4 应用：Electron 主进程壳、IPC 网关、CLI 入口
- *
- * 阶段 0 脚手架占位入口，按拆分计划在对应阶段迁入实际实现。
+ * 模块入口占位（Electron 实际入口为 src/main.mjs）
  */
-export const __scaffold__ = true
+export const __scaffold__ = false
+export const isElectronShell = true

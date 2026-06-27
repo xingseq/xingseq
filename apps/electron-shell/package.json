@@ -1,18 +1,27 @@
 {
   "name": "@xingseq/electron-shell",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "L4 应用：Electron 主进程壳、IPC 网关、CLI 入口",
-  "main": "src/index.js",
+  "description": "L4 应用：Electron 桌面壳，承载 workspace-app",
+  "main": "src/main.mjs",
   "exports": {
     ".": "./src/index.js"
   },
   "scripts": {
+    "start": "electron src/main.mjs",
+    "dev": "NODE_ENV=development electron src/main.mjs",
+    "build": "npm run web:build -w apps/workspace-app",
     "test": "echo \"no tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.6"
+  },
+  "dependencies": {
+    "@xingseq/workspace-app": "*"
   },
   "xingseq": {
     "stage": 4,
-    "status": "scaffold"
+    "status": "dev"
   }
 }
