@@ -227,7 +227,15 @@ async function route(req, res) {
         }))
       return sendJSON(res, 200, { path: relPath, items })
     } catch (e) {
-      return sendJSON(res, 404, { error: e.message })
+      if (e.code === 'EPERM' || e.code === 'EACCES') {
+        return sendJSON(res, 403, {
+          error: `无权限访问目录：${relPath}。请检查系统"隐私与安全性 → 完全磁盘访问权限"设置。`
+        })
+      }
+      if (e.code === 'ENOENT') {
+        return sendJSON(res, 404, { error: `目录不存在：${relPath}` })
+      }
+      return sendJSON(res, 500, { error: e.message })
     }
   }
 
@@ -251,7 +259,13 @@ async function route(req, res) {
       const content = await fsp.readFile(absPath, 'utf-8')
       return sendJSON(res, 200, { path: relPath, content, size: stat.size })
     } catch (e) {
-      return sendJSON(res, 404, { error: e.message })
+      if (e.code === 'EPERM' || e.code === 'EACCES') {
+        return sendJSON(res, 403, { error: `无权限读取文件：${relPath}` })
+      }
+      if (e.code === 'ENOENT') {
+        return sendJSON(res, 404, { error: `文件不存在：${relPath}` })
+      }
+      return sendJSON(res, 500, { error: e.message })
     }
   }
 
