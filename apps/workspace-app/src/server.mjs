@@ -203,6 +203,39 @@ async function route(req, res) {
     }
   }
 
+  // files search
+  if (method === 'GET' && pathname === '/api/files/search') {
+    const wsOpts = parseWsOpts(url)
+    const ws = resolveWorkspace(wsOpts)
+    await ensureWorkspace(ws)
+    const query = (url.searchParams.get('q') || '').trim().toLowerCase()
+    if (!query) return sendJSON(res, 400, { error: '缺少搜索关键词 q' })
+
+    const EXCLUDE = new Set(['node_modules', '.git', '.DS_Store', 'dist', 'build', '.next', '.cache'])
+    const MAX_RESULTS = 50
+    const results = []
+
+    async function walk(dir, rel) {
+      if (results.length >= MAX_RESULTS) return
+      let entries
+      try { entries = await fsp.readdir(dir, { withFileTypes: true }) }
+      catch { return }
+      for (const e of entries) {
+        if (results.length >= MAX_RESULTS) break
+        if (EXCLUDE.has(e.name) || e.name.startsWith('.')) continue
+        const childRel = rel ? `${rel}/${e.name}` : e.name
+        if (e.isDirectory()) {
+          await walk(path.join(dir, e.name), childRel)
+        } else if (e.name.toLowerCase().includes(query)) {
+          results.push({ name: e.name, path: childRel, type: 'file', dir: rel || '.' })
+        }
+      }
+    }
+
+    await walk(ws.filesDir, '')
+    return sendJSON(res, 200, { query, results })
+  }
+
   // files tree
   if (method === 'GET' && pathname === '/api/files') {
     const wsOpts = parseWsOpts(url)
