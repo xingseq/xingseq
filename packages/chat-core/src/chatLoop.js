@@ -10,6 +10,7 @@
  */
 
 import { executeChat } from '@xingseq/llm-core'
+import { TraceCollector } from './trace.js'
 
 const DEFAULT_MAX_DEPTH = 5
 
@@ -31,9 +32,12 @@ const DEFAULT_MAX_DEPTH = 5
  * @param {object}   [opts.confirmation]     - 工具确认管理器（createConfirmationManager 返回值）
  * @param {number}   [opts.maxDepth=5]
  * @param {function} [opts.executor]         - 注入式 chat 执行器（默认 executeChat）；测试用
- * @returns {Promise<{ success, fullContent?, toolCalls?, depth, error?, model? }>}
+ * @param {import('./trace.js').TraceCollector} [opts.trace] - 执行轨迹收集器（可选）
+ * @returns {Promise<{ success, fullContent?, toolCalls?, depth, error?, model?, trace? }>}
  */
 export async function runChatTurnWithTools(opts) {
+  const trace = opts?.trace || new TraceCollector({ sessionId: opts?.sessionId || null })
+
   const {
     apiKey,
     messages,
@@ -54,10 +58,22 @@ export async function runChatTurnWithTools(opts) {
   } = opts || {}
 
   if (!Array.isArray(messages) || messages.length === 0) {
-    return { success: false, error: { message: 'messages 不能为空', code: 'BAD_REQUEST' }, depth: 0 }
+    trace.error({ message: 'messages 不能为空', code: 'BAD_REQUEST' })
+    return { success: false, error: { message: 'messages 不能为空', code: 'BAD_REQUEST' }, depth: 0, trace: trace.finish() }
   }
 
   for (let depth = 0; depth < maxDepth; depth++) {
+    trace.llmRequest({
+      depth,
+      messageCount: messages.length,
+      lastMessage: messages[messages.length - 1],
+      tools: tools ? tools.map(t => t.function?.name || t.name).filter(Boolean) : null,
+      provider,
+      mode,
+      subModel,
+      customParams
+    })
+
     const result = await executor({
       apiKey,
       messages,
@@ -71,10 +87,20 @@ export async function runChatTurnWithTools(opts) {
     })
 
     if (!result || !result.success) {
-      return { ...(result || {}), depth }
+      trace.error({ depth, error: result?.error || 'LLM 调用失败' })
+      return { ...(result || {}), depth, trace: trace.finish() }
     }
 
     const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls.filter(Boolean) : []
+
+    trace.llmResponse({
+      depth,
+      content: result.fullContent,
+      toolCalls,
+      usage: result.usage,
+      model: result.model,
+      finishReason: result.finishReason
+    })
 
     // 没有工具调用：本轮就是最终回复
     if (toolCalls.length === 0) {
@@ -82,7 +108,8 @@ export async function runChatTurnWithTools(opts) {
         role: 'assistant',
         content: result.fullContent || ''
       })
-      return { ...result, depth }
+      trace.final({ content: result.fullContent, depth })
+      return { ...result, depth, trace: trace.finish() }
     }
 
     // 有工具调用：先把 assistant + tool_calls 入栈
@@ -96,6 +123,7 @@ export async function runChatTurnWithTools(opts) {
       // 没有 registry：直接把每个调用回成失败提示
       for (const tc of toolCalls) {
         const errMsg = JSON.stringify({ error: 'tool registry 未注入，无法执行工具' })
+        trace.toolExecution({ toolCall: tc, result: null, error: 'tool registry 未注入，无法执行工具' })
         messages.push({ role: 'tool', tool_call_id: tc.id, content: errMsg })
       }
       continue
@@ -117,6 +145,7 @@ export async function runChatTurnWithTools(opts) {
         const ok = await confirmation.confirmToolExecution(toolName, parsedArgs).catch(() => false)
         if (!ok) {
           if (onToolDenied) onToolDenied(tc)
+          trace.toolDenied({ toolCall: tc, reason: '用户拒绝' })
           const denyMsg = JSON.stringify({ error: '用户拒绝了本次工具调用', tool: toolName })
           messages.push({ role: 'tool', tool_call_id: tc.id, content: denyMsg })
           continue
@@ -124,15 +153,25 @@ export async function runChatTurnWithTools(opts) {
       }
 
       if (onToolCall) onToolCall(tc)
+      const toolStart = Date.now()
       let toolPayload
+      let toolError = null
+      let toolResult = null
       try {
-        const toolResult = await registry.dispatch(tc, { sessionId })
+        toolResult = await registry.dispatch(tc, { sessionId })
         toolPayload = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)
         if (onToolResult) onToolResult(tc, toolResult, null)
       } catch (err) {
-        toolPayload = JSON.stringify({ error: err.message || String(err) })
+        toolError = err.message || String(err)
+        toolPayload = JSON.stringify({ error: toolError })
         if (onToolResult) onToolResult(tc, null, err)
       }
+      trace.toolExecution({
+        toolCall: tc,
+        result: toolResult,
+        error: toolError,
+        duration: Date.now() - toolStart
+      })
       messages.push({
         role: 'tool',
         tool_call_id: tc.id,
@@ -142,9 +181,12 @@ export async function runChatTurnWithTools(opts) {
     // 进入下一轮
   }
 
+  const maxDepthError = { message: `达到最大工具调用深度 ${maxDepth}`, code: 'MAX_DEPTH' }
+  trace.error({ depth: maxDepth, error: maxDepthError })
   return {
     success: false,
-    error: { message: `达到最大工具调用深度 ${maxDepth}`, code: 'MAX_DEPTH' },
-    depth: maxDepth
+    error: maxDepthError,
+    depth: maxDepth,
+    trace: trace.finish()
   }
 }

@@ -58,11 +58,21 @@
  */
 
 /**
+ * @typedef {object} ChatTrace
+ * @property {string}   traceId
+ * @property {string}   [sessionId]
+ * @property {number}   startedAt
+ * @property {number}   [finishedAt]
+ * @property {object[]} events
+ */
+
+/**
  * @typedef {object} ChatResult
  * @property {string}              content      最终文本回复
  * @property {ChatToolCall[]}      [toolCalls]  本轮触发的工具调用
  * @property {boolean}             [stopped]    是否被用户/超时打断
  * @property {object}              [usage]      token 用量（如有）
+ * @property {ChatTrace}           [trace]      执行轨迹（含 LLM 调用与工具执行记录）
  */
 
 /**

@@ -19,6 +19,13 @@ export {
 } from './chatSession.js'
 export { runChatTurnWithTools } from './chatLoop.js'
 
+// ── 执行轨迹（星序图原材料）──────────────────────────────────────────────────
+export {
+  TraceCollector,
+  createTraceCollector,
+  TRACE_EVENT_TYPES
+} from './trace.js'
+
 // ── workspace 一等公民 ───────────────────────────────────────────────────────
 export {
   resolveWorkspace,

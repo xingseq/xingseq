@@ -5,6 +5,9 @@
   "type": "module",
   "description": "L3 对话引擎核心：LLM 对话循环 + 工具派发 + workspace 隔离 + 安全确认",
   "main": "src/index.js",
+  "scripts": {
+    "test": "node test/trace.test.mjs"
+  },
   "exports": {
     ".": "./src/index.js",
     "./chatSession": "./src/chatSession.js",

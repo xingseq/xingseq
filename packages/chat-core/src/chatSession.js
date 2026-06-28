@@ -186,7 +186,8 @@ export function createChatSession(opts = {}) {
       onToolResult: options.onToolResult,
       onToolDenied: options.onToolDenied,
       confirmation: options.confirmation || null,
-      executor: options.executor
+      executor: options.executor,
+      trace: options.trace || undefined
     })
 
     return result
