@@ -8,7 +8,7 @@
   "license": "MIT",
   "main": "src/index.js",
   "scripts": {
-    "test": "node test/trace.test.mjs"
+    "test": "node test/trace.test.mjs && node test/hallucinationGuard.test.mjs"
   },
   "exports": {
     ".": "./src/index.js",

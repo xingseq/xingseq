@@ -26,6 +26,13 @@ export {
   TRACE_EVENT_TYPES
 } from './trace.js'
 
+// ── 防幻觉校验 ──────────────────────────────────────────────────────────────
+export {
+  checkToolHallucination,
+  HALLUCINATION_GUARD_DEFAULTS,
+  GUARD_SYSTEM_PROMPT
+} from './hallucinationGuard.js'
+
 // ── workspace 一等公民 ───────────────────────────────────────────────────────
 export {
   resolveWorkspace,

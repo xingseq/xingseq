@@ -11,6 +11,7 @@
 
 import { executeChat } from '@xingseq/llm-core'
 import { TraceCollector } from './trace.js'
+import { checkToolHallucination, HALLUCINATION_GUARD_DEFAULTS } from './hallucinationGuard.js'
 
 const DEFAULT_MAX_DEPTH = 5
 
@@ -32,7 +33,9 @@ const DEFAULT_MAX_DEPTH = 5
  * @param {object}   [opts.confirmation]     - 工具确认管理器（createConfirmationManager 返回值）
  * @param {number}   [opts.maxDepth=5]
  * @param {function} [opts.executor]         - 注入式 chat 执行器（默认 executeChat）；测试用
+ * @param {function} [opts.guardExecutor]    - 审查用 LLM 执行器（独立于主 executor）；用于幻觉检测
  * @param {import('./trace.js').TraceCollector} [opts.trace] - 执行轨迹收集器（可选）
+ * @param {object|boolean} [opts.hallucinationGuard] - 幻觉校验配置。true=启用默认，false=禁用，对象=自定义配置
  * @returns {Promise<{ success, fullContent?, toolCalls?, depth, error?, model?, trace? }>}
  */
 export async function runChatTurnWithTools(opts) {
@@ -54,8 +57,16 @@ export async function runChatTurnWithTools(opts) {
     onToolDenied = null,
     confirmation = null,
     maxDepth = DEFAULT_MAX_DEPTH,
-    executor = executeChat
+    executor = executeChat,
+    guardExecutor = null
   } = opts || {}
+
+  // 幻觉校验配置
+  const hgOpt = opts?.hallucinationGuard
+  const hgConfig = hgOpt === false
+    ? { enabled: false, maxRetries: 0 }
+    : { ...HALLUCINATION_GUARD_DEFAULTS, ...(typeof hgOpt === 'object' ? hgOpt : {}) }
+  let hallucinationRetries = 0
 
   if (!Array.isArray(messages) || messages.length === 0) {
     trace.error({ message: 'messages 不能为空', code: 'BAD_REQUEST' })
@@ -102,8 +113,32 @@ export async function runChatTurnWithTools(opts) {
       finishReason: result.finishReason
     })
 
-    // 没有工具调用：本轮就是最终回复
+    // 没有工具调用：本轮就是最终回复（但先做幻觉校验）
     if (toolCalls.length === 0) {
+      // ── 幻觉校验（LLM 审查） ──
+      if (hgConfig.enabled && guardExecutor && hallucinationRetries < hgConfig.maxRetries) {
+        const toolNames = tools ? tools.map(t => t.function?.name || t.name).filter(Boolean) : []
+        const check = await checkToolHallucination({
+          content: result.fullContent || '',
+          guardExecutor,
+          availableTools: toolNames
+        })
+        if (check.detected) {
+          hallucinationRetries++
+          trace.add({
+            type: 'hallucination-detected',
+            payload: {
+              depth,
+              retryCount: hallucinationRetries
+            }
+          })
+          // 注入纠正消息，让 LLM 重新推理
+          messages.push({ role: 'assistant', content: result.fullContent || '' })
+          messages.push({ role: 'user', content: check.correction })
+          continue // 回到循环顶部重新调 LLM
+        }
+      }
+
       messages.push({
         role: 'assistant',
         content: result.fullContent || ''
