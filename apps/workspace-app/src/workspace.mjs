@@ -19,7 +19,7 @@
  *     └── memory/       对话历史
  *
  *   路径式：
- *     filesDir  = 用户指定的绝对路径（如 /Users/ws/Dev/myproject）
+ *     filesDir  = 用户指定的绝对路径（如 /path/to/project）
  *     memoryDir = ~/.xingseq/workspace-app/memory/<pathHash>/
  */
 
