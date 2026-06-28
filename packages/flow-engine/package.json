@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L3 能力：星序图执行引擎、节点执行器、状态机、DAG",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

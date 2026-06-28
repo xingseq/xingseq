@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L1 验收 demo：CLI 形式串通 shared-utils + config-core + llm-core",
+  "author": "xingseq authors",
+  "license": "MIT",
   "bin": {
     "hello-chat": "./src/cli.mjs"
   },

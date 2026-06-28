@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L2 领域：对话索引 / 完整对话文件 / 分岔路径 / 通知消息 / 主应用记忆",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

@@ -3,7 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "星序引擎工作区 - 按层分包的拆分版（源代码按需从 xingseq-develop 迁入）",
+  "description": "XingSeq Agent Harness monorepo: a layered framework for building, running, and orchestrating LLM agents with ReAct loop, tool registry, and multi-provider support.",
+  "author": "xingseq authors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xingseq/xingseq.git"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"

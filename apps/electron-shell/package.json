@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：Electron 桌面壳，承载 workspace-app",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/main.mjs",
   "exports": {
     ".": "./src/index.js"

@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L1 基座：原子文件 / AES 加密 / sql.js 数据库",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

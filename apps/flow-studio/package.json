@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：星序图编辑 / 管理",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

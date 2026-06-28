@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：邮件网关 + 邮件 CLI（收发邮件、常驻监听）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "bin": {
     "mail-app": "./src/cli.mjs"

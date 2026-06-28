@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：LLM 模型配置管理中心（全局模型增删、API Key、默认模型选择、连通性测试）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "bin": {
     "llm-manager": "./src/cli.mjs"

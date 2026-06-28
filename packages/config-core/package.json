@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L1 基座：通用配置 / 模型配置 / API Key 取值",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

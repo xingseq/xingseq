@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L1 基座：logger / proxy / timestamp / 通用常量",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

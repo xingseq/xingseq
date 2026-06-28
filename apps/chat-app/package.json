@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：交互式多轮对话 CLI（含工具调用循环）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "bin": {
     "chat-app": "./src/cli.mjs"

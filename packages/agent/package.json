@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L3 能力：Agent 大脑（5 器官框架 + 职业星序图）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L2 领域：skill 下载 / 安装 / 状态 / 清理",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

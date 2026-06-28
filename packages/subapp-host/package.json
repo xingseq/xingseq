@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L2 领域：子应用注册 / 进程 / CLI / UI / 记忆",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

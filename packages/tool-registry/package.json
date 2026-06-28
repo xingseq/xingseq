@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L2 领域：工具定义注册中心 + 统一执行入口 + 敏感操作确认（依赖注入）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

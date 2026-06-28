@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L3 能力：agent 进程注册、生命周期、邮箱守护、通信（迁自 agent-manager）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"

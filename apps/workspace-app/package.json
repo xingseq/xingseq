@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：工作区操作助手（支持挂载本地目录 + 文件读写 + Shell）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "bin": {
     "workspace-app": "./src/cli.mjs"

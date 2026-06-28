@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L1 基座：多 provider LLM 客户端、流式解析、错误标准化、会话控制",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",

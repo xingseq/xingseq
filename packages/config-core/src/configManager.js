@@ -1,5 +1,5 @@
 /**
- * 配置管理（裁剪自 xingseq-develop/electron/data/configManager.js）
+ * 配置管理（迁自原单体项目）
  *
  * 相对原版的差异：
  * 1. import 来源调整：getLogger / safeJsonParse 改自 @xingseq/shared-utils

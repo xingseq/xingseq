@@ -2,7 +2,7 @@
  * @xingseq/shared-utils
  * L1 基座：logger / proxy / timestamp / 通用常量
  *
- * 已迁入（来自 xingseq-develop electron/utils 与 electron/constants）：
+ * 已迁入（迁自原单体项目）：
  * - logger        相对原版去掉了对 cli/runtime.js 的硬依赖，改为通过 env.js 注入
  * - proxyManager  相对原版去掉了对 data/configManager.js 的硬依赖，改为 env.js 注入
  * - lazyLogger / logFormat / jsonUtils / timestamp / providerConstants  原样迁入

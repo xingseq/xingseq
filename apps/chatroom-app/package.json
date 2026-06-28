@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "L4 应用：AI 聊天室（ChatRoom）",
+  "author": "xingseq authors",
+  "license": "MIT",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"
