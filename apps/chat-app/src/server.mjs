@@ -82,7 +82,7 @@ async function getOrCreateSession(workspaceName, conversationId) {
     workspace: ws,
     enableEmail: true
   })
-  // 这里只声明返回 IChatProvider；具体由 provider.mjs 决定走 chat-core 还是 ai-butler。
+  // 这里只声明返回 IChatProvider；具体由 provider.mjs 决定走 chat-core 还是 agent。
   const session = createProvider({
     id: conversationId,
     workspace: ws,

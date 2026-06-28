@@ -34,7 +34,7 @@ const TARGETS = [
   ['packages/skill-host',     'skill-host',     'L2 领域：skill 下载 / 安装 / 状态 / 清理', 2],
   ['packages/subapp-host',    'subapp-host',    'L2 领域：子应用注册 / 进程 / CLI / UI / 记忆', 2],
   // L3 能力层
-  ['packages/ai-butler',      'ai-butler',      'L3 能力：Agent 基类、prompt 体系、规划 / 反思 / 邮件 / 课程', 3],
+  ['packages/agent',          'agent',          'L3 能力：Agent 大脑（5 器官框架 + 职业星序图）', 3],
   ['packages/agent-runtime',  'agent-runtime',  'L3 能力：agent 进程注册、生命周期、邮箱守护、通信（迁自 agent-manager）', 3],
   ['packages/flow-engine',    'flow-engine',    'L3 能力：星序图执行引擎、节点执行器、状态机、DAG', 3],
   // L4 应用层

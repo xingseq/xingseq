@@ -98,9 +98,9 @@ const { createProvider, resolveProviderType } = await import('../src/provider.mj
 assert(resolveProviderType() === 'chat-core', '默认 provider type = chat-core')
 
 threw = false
-try { createProvider({ type: 'ai-butler' }) }
+try { createProvider({ type: 'agent' }) }
 catch { threw = true }
-assert(threw, 'ai-butler 未实现时抛错')
+assert(threw, 'agent 未实现时抛错')
 
 threw = false
 try { createProvider({ type: 'unknown' }) }

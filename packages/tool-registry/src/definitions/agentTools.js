@@ -62,7 +62,7 @@ export const agentTools = [
         properties: {
           from: {
             type: 'string',
-            description: '发送者 Agent 名称（必须指定，用于接收回复）。例如 "ai-butler"'
+            description: '发送者 Agent 名称（必须指定，用于接收回复）。例如 "agent"'
           },
           to: {
             type: 'string',
@@ -320,7 +320,7 @@ export const agentTools = [
         properties: {
           name: {
             type: 'string',
-            description: 'Agent 名称（如 ai-butler）'
+            description: 'Agent 名称（如 agent）'
           },
           new_script: {
             type: 'string',

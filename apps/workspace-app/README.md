@@ -66,7 +66,7 @@ Web 前端顶栏提供「+ 挂载」按钮，可输入任意绝对路径并即�
 
 ```
 workspace-app (L4)
-  ├── provider.mjs     IChatProvider 工厂（当前 chat-core，预留 ai-butler）
+  ├── provider.mjs     IChatProvider 工厂（当前 chat-core，预留 agent）
   ├── workspace.mjs    工作区解析（增强版，支持绝对路径）
   ├── server.mjs       HTTP + SSE 服务
   ├── cli.mjs          交互式 CLI

@@ -23,7 +23,7 @@ await session.chat('你好', { onChunk })
 | Provider 类型 | 底层实现 | 状态 |
 |---|---|---|
 | `chat-core` (默认) | `createChatSession`（一次→N 次 LLM + 工具循环） | ✅ 已接入 |
-| `ai-butler` | `createAIButler`（多角色协调 Agent） | 🚧 L3 ai-butler 完成后接入 |
+| `agent` | `createAgent`（5 器官框架 + 职业星序图） | 🚧 L3 agent 完成后接入 |
 
 切换方式：
 
@@ -31,8 +31,8 @@ await session.chat('你好', { onChunk })
 # 默认 chat-core
 node src/cli.mjs
 
-# 切换 ai-butler（暂未实现，会友好报错）
-XINGSEQ_PROVIDER=ai-butler node src/cli.mjs
+# 切换 agent（暂未实现，会友好报错）
+XINGSEQ_PROVIDER=agent node src/cli.mjs
 ```
 
 切换底层 = 改 `provider.mjs` 一处，cli/server 零改动。契约文档：[@xingseq/chat-core/src/IChatProvider.js](file:///Users/ws/Dev/xingseq/packages/chat-core/src/IChatProvider.js)。

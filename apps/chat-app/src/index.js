@@ -5,12 +5,12 @@
  * 架构约定（与蓝图一致）：
  *   - 对话能力一律走 IChatProvider 接口（契约见 @xingseq/chat-core/IChatProvider.js）
  *   - 应用层只通过 createProvider() 拿 IChatProvider 实例，不直接 import 具体实现
- *   - 切换底层（chat-core ↔ ai-butler）= 改 ./provider.mjs，cli/server 零改动
+ *   - 切换底层（chat-core ↔ agent）= 改 ./provider.mjs，cli/server 零改动
  *
  * 入口文件：
  *   - src/cli.mjs        交互式 CLI（含 --live / --once / --workspace 等）
  *   - src/server.mjs     HTTP + SSE 服务（带 30s 倒计时确认弹窗）
- *   - src/provider.mjs   provider 工厂（type=chat-core|ai-butler）
+ *   - src/provider.mjs   provider 工厂（type=chat-core|agent）
  *   - web/               Vite + React 前端
  */
 

@@ -141,9 +141,9 @@ const coordinatorAgent = createAgentRuntime({ engine: specialistAgent, tools: de
   ✅ chat-app 作为 L4 薄壳消费 chat-core
 
 下一步：
-  ⏳ agent-runtime 实现 IChatProvider（规划 + 记忆 + 多步）
+  ⏳ agent 实现 IChatProvider（5 器官框架 + 职业星序图）
+  ⏳ agent-runtime 实现多 agent 调度与通信
   ⏳ agent-runtime 内部消费 chat-core 作为执行引擎
-  ⏳ ai-butler 作为 agent-runtime 的高级实现（多 agent 协调）
 ```
 
 ---
@@ -154,8 +154,8 @@ const coordinatorAgent = createAgentRuntime({ engine: specialistAgent, tools: de
 |------|------|
 | "把 messages 发给模型拿回响应" | llm-core |
 | "响应里有 tool_calls，执行后继续轮询" | chat-core |
-| "这个任务太复杂，先拆成 3 步再逐步执行" | agent-runtime |
-| "这 3 步分别交给不同的专家 agent" | ai-butler |
+| "这个任务太复杂，先拆成 3 步再逐步执行" | agent |
+| "这 3 步分别交给不同的专家 agent" | agent-runtime |
 
 ---
 
@@ -171,8 +171,8 @@ L2 领域层
 
 L3 能力层
   └── chat-core         → IChatProvider + 工具循环
-  └── agent-runtime     → IChatProvider + 规划/记忆/反思
-  └── ai-butler         → IChatProvider + 多 agent 协调
+  └── agent             → IChatProvider + 5 器官框架 + 职业星序图
+  └── agent-runtime     → 多 agent 调度、通信、生命周期
 
 L4 应用层
   └── chat-app          → CLI/Web 入口，消费任意 IChatProvider

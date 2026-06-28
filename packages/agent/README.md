@@ -1,6 +1,6 @@
-# @xingseq/ai-butler
+# @xingseq/agent
 
-L3 能力：Agent 基类、prompt 体系、规划 / 反思 / 邮件 / 课程
+L3 能力：Agent 大脑（5 器官框架 + 职业星序图）
 
 - 计划阶段：阶段 3
 - 当前状态：脚手架占位，尚未迁入代码

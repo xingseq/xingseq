@@ -10,7 +10,7 @@ L3 三个包都是同一个接口的不同实现，从消费方视角等价：
 |---|---|---|
 | `llm-core`  | 一次模型 API 调用 | 「一个 LLM」 |
 | `chat-core` | 1 次 → N 次 LLM 调用 + 工具循环 + workspace | 「会自动调工具的 LLM」 |
-| `ai-butler` | N 个 chat-core 实例 + BrainCoordinator 多角色协调 | 「会思考的 LLM」 |
+| `agent`     | 5 器官框架 + 职业星序图 | 「会思考的 LLM」 |
 
 三者都是「给它消息，它回你内容」：
 
@@ -26,8 +26,8 @@ import { createChatSession } from '@xingseq/chat-core'
 const provider = createChatSession({ workspace, registry })
 
 // 复杂场景（计划中）——同一个应用可运行时升级
-import { createAIButler } from '@xingseq/ai-butler'
-const provider = createAIButler({ workspace })
+import { createAgent } from '@xingseq/agent'
+const provider = createAgent({ workspace })
 
 // 以上两种 → 统一调用、统一返回
 await provider.chat('帮我创建个项目')

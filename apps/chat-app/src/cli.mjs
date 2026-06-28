@@ -51,7 +51,7 @@ setSharedEnv({
 
 // ===== 2. 业务模块 import =====
 // 注意：这里只 import workspace 治理 + provider 工厂；对话能力一律走 IChatProvider 接口。
-// 切换底层（chat-core ↔ ai-butler）= 改 provider.mjs，不动本文件。
+// 切换底层（chat-core ↔ agent）= 改 provider.mjs，不动本文件。
 const {
   createWorkspaceRegistry,
   resolveWorkspace,
@@ -130,7 +130,7 @@ if (isList) {
 }
 
 // ===== 7. 创建会话 =====
-// session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 ai-butler，
+// session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 agent，
 // 这段代码都不需要修改。
 // --json 模式下启用 email 工具（send_email 走 mail-app CLI 回调）
 const registry = await createWorkspaceRegistry({

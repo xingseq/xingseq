@@ -27,7 +27,7 @@ export const timerTools = [
           },
           target_agent: {
             type: 'string',
-            description: '到期后通知的目标 Agent 名称，如 "ai-butler" 等'
+            description: '到期后通知的目标 Agent 名称，如 "agent" 等'
           },
           message: {
             type: 'string',

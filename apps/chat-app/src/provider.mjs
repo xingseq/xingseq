@@ -5,24 +5,24 @@
  * IChatProvider 接口，不直接 import 具体实现（createChatSession / createAIButler）。
  *
  * 这样做的价值：
- *   - 切换底层实现（chat-core ↔ ai-butler）= 改这一个文件，应用层零改动
+ * 切换底层实现（chat-core ↔ agent）= 改这一个文件，应用层零改动
  *   - cli.mjs / server.mjs 里的类型声明只标 IChatProvider，不绑死实现
  *   - 未来 workspace-app / chatroom-app 复用同一份 provider 工厂
  *
  * 当前支持：
  *   - 'chat-core' (默认)：单实例 + 工具循环 + workspace
- *   - 'ai-butler'        ：多角色协调 Agent（计划中，L3 ai-butler 完成后接入）
+ *   - 'agent'            ：多角色协调 Agent（计划中，L3 agent 完成后接入）
  *
  * 切换方式：
- *   - 函数参数：createProvider({ type: 'ai-butler', ... })
- *   - 环境变量：XINGSEQ_PROVIDER=ai-butler node src/cli.mjs
+ *   - 函数参数：createProvider({ type: 'agent', ... })
+ *   - 环境变量：XINGSEQ_PROVIDER=agent node src/cli.mjs
  *
  * 契约文档：see @xingseq/chat-core/src/IChatProvider.js
  */
 
 import { createChatSession } from '@xingseq/chat-core'
 
-const SUPPORTED = new Set(['chat-core', 'ai-butler'])
+const SUPPORTED = new Set(['chat-core', 'agent'])
 
 /**
  * 当前生效的 provider 类型（显式参数 > 环境变量 > 默认 chat-core）
@@ -53,10 +53,10 @@ export function createProvider(opts = {}) {
     )
   }
 
-  if (type === 'ai-butler') {
+  if (type === 'agent') {
     throw new Error(
-      `[chat-app] provider "ai-butler" 尚未接入（L3 ai-butler 仍是脚手架）。` +
-      `请暂时使用 "chat-core"，或等 ai-butler 完成后再切。`
+      `[chat-app] provider "agent" 尚未接入（L3 agent 仍是脚手架）。` +
+      `请暂时使用 "chat-core"，或等 agent 完成后再切。`
     )
   }
 

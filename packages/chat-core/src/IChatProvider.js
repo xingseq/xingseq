@@ -2,7 +2,7 @@
  * IChatProvider —— 星序对话能力统一接口约定
  *
  * 核心思想：
- *   llm-core / chat-core / ai-butler 三个层，对外都暴露同一个 chat() 形态。
+ *   llm-core / chat-core / agent 三个层，对外都暴露同一个 chat() 形态。
  *   消费方（chat-app / workspace-app / chatroom-app / flow-studio）
  *   只 import 接口、不关心底下是「裸模型」「模型+工具循环」还是「多角色协调」。
  *
@@ -11,7 +11,7 @@
  *   ┌─────────────┬──────────────────────────────────────────────┐
  *   │ llm-core    │ 一次模型 API 调用                            │
  *   │ chat-core   │ 一次 → N 次 LLM 调用 + 工具循环 + workspace  │
- *   │ ai-butler   │ N 个 chat-core 实例 + BrainCoordinator       │
+ *   │ agent       │ 5 器官框架 + 职业星序图                       │
  *   └─────────────┴──────────────────────────────────────────────┘
  *
  * 三者从消费方视角等价 —— 都是「给它消息，它回你内容」。
@@ -85,7 +85,7 @@
  *
  * 当前实现：
  *   - chat-core: createChatSession({ workspace, registry })  → IChatProvider
- *   - ai-butler: createAIButler({ workspace, ... })         → IChatProvider（计划中）
+ *   - agent:     createAgent({ workspace, ... })            → IChatProvider（计划中）
  *
  * @typedef {object} IChatProvider
  * @property {string}             id
@@ -106,9 +106,9 @@
  *   const provider = createChatSession({ workspace, registry })
  *   const reply = await provider.chat('你好')
  *
- *   // 后续可无缝替换为 ai-butler，应用层零改动：
- *   // import { createAIButler } from '@xingseq/ai-butler'
- *   // const provider = createAIButler({ workspace })
+ *   // 后续可无缝替换为 agent，应用层零改动：
+ *   // import { createAgent } from '@xingseq/agent'
+ *   // const provider = createAgent({ workspace })
  */
 
 // 标记导出：让 import 它的代码能感知到这是契约文件
@@ -117,6 +117,6 @@ export const IChatProviderContract = Object.freeze({
   description: '星序对话能力统一接口契约',
   implementations: {
     'chat-core': 'createChatSession',
-    'ai-butler': 'createAIButler (planned)'
+    'agent': 'createAgent (planned)'
   }
 })

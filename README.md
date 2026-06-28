@@ -11,7 +11,7 @@
 
 ```
 L4 apps     | chat-app · workspace-app · chatroom-app · flow-studio · electron-shell
-L3 能力     | ai-butler · flow-engine ·（agent-runtime 待迁入）
+L3 能力     | agent · flow-engine · agent-runtime
 L2 领域     | tool-registry · memory-store · skill-host · subapp-host
 L1 基座     | shared-utils · config-core · storage-core · llm-core
 ```
@@ -25,7 +25,7 @@ L1 基座     | shared-utils · config-core · storage-core · llm-core
 | 0 | 建工作区骨架（占位包 + scaffold 脚本 + workspaces 配置） | ✅ 完成 |
 | 1 | 迁入 L1 基座代码（shared-utils → config-core → storage-core → llm-core） | ✅ 完成 |
 | 2 | 迁入 L2 领域服务 | ✅ 完成 |
-| 3 | 迁入 L3 能力层（chat-core 已落地，agent-runtime/ai-butler 待迁入） | 进行中 |
+| 3 | 迁入 L3 能力层（chat-core 已落地，agent/agent-runtime 待迁入） | 进行中 |
 | 4 | 拆 L4 应用层（chat-app ✅ · mail-app ✅ · workspace-app ✅ · electron-shell 🖥️ · 其余待迁入） | 进行中 |
 | 5 | 依赖图审计、清理 re-export 适配层 | 待开始 |
 

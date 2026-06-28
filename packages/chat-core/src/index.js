@@ -3,7 +3,7 @@
  *
  * L3 对话引擎核心：所有需要 LLM 对话能力的 L4 应用都从此包消费。
  *
- * 架构原则：L3 三个包（llm-core / chat-core / ai-butler）均实现同一个
+ * 架构原则：L3 三个包（llm-core / chat-core / agent）均实现同一个
  * IChatProvider 接口，从消费方视角等价：都是「给它消息，它回你内容」。
  * 详见 ./IChatProvider.js 契约。
  */

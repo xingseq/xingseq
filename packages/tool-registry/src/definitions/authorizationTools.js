@@ -5,7 +5,7 @@
  * @updated 2026-03-28 移除需要 GUI 的授权请求工具
  * 
  * 注意：需要 GUI 弹窗确认的授权请求工具（如 request_executable_authorization）
- * 不在此处定义，因为 ai-butler (CLI) 无法使用 GUI 功能。
+ * 不在此处定义，因为 agent (CLI) 无法使用 GUI 功能。
  * 授权请求应由 GUI Agent 通过 IPC 处理。
  */
 
