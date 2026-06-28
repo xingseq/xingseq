@@ -50,8 +50,7 @@ running.lock
 backups/
 reports/
 
-# Qoder
-.qoder/
+.*/
 
 # 本地开发目录
 local/
