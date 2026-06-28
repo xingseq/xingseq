@@ -22,7 +22,7 @@ import os from 'node:os'
 const args = process.argv.slice(2)
 const isDry = args.includes('--dry')
 const toIdx = args.indexOf('--to')
-const TO = toIdx >= 0 ? args[toIdx + 1] : 'tian_su@qq.com'
+const TO = toIdx >= 0 ? args[toIdx + 1] : 'test@example.com'
 
 // ===== 测试基础设施 =====
 let pass = 0

@@ -6,7 +6,7 @@
   <string>com.xingseq.mail-app</string>
 
   <key>WorkingDirectory</key>
-  <string>/Users/ws/Dev/xingseq/apps/mail-app</string>
+  <string>/path/to/xingseq/apps/mail-app</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -28,10 +28,10 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/ws/.xingseq/mail-app/logs/gateway.stdout.log</string>
+  <string>/path/to/home/.xingseq/mail-app/logs/gateway.stdout.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/ws/.xingseq/mail-app/logs/gateway.stderr.log</string>
+  <string>/path/to/home/.xingseq/mail-app/logs/gateway.stderr.log</string>
 
   <key>ThrottleInterval</key>
   <integer>10</integer>

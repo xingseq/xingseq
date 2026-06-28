@@ -9,7 +9,7 @@ L4 应用：**交互式多轮对话**，含 tool_calls 工具调用循环 + 工�
 
 ## 架构约定：只依赖 IChatProvider 接口
 
-chat-app 是第一个落地 IChatProvider 抽象的 L4 应用 —— cli / server 里 **不直接** import `createChatSession`，而是通过 [provider.mjs](file:///Users/ws/Dev/xingseq/apps/chat-app/src/provider.mjs) 取 IChatProvider 实例：
+chat-app 是第一个落地 IChatProvider 抽象的 L4 应用 —— cli / server 里 **不直接** import `createChatSession`，而是通过 [provider.mjs](./src/provider.mjs) 取 IChatProvider 实例：
 
 ```js
 import { createProvider } from './provider.mjs'
@@ -35,7 +35,7 @@ node src/cli.mjs
 XINGSEQ_PROVIDER=agent node src/cli.mjs
 ```
 
-切换底层 = 改 `provider.mjs` 一处，cli/server 零改动。契约文档：[@xingseq/chat-core/src/IChatProvider.js](file:///Users/ws/Dev/xingseq/packages/chat-core/src/IChatProvider.js)。
+切换底层 = 改 `provider.mjs` 一处，cli/server 零改动。契约文档：[@xingseq/chat-core/src/IChatProvider.js](../../packages/chat-core/src/IChatProvider.js)。
 
 ## 设计要点
 

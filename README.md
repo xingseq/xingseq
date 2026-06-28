@@ -46,11 +46,14 @@ cd xingseq
 # 2. Install dependencies for all workspaces
 npm install
 
-# 3. Configure at least one LLM API key
+# 3. Verify without an API key (mock LLM + tool loop)
+make chat-dry
+
+# 4. Configure at least one LLM API key for live mode
 cp .env.example .env
 # Edit .env and set DEEPSEEK_API_KEY (or KIMI_API_KEY / QWEN_API_KEY / DOUBAO_API_KEY)
 
-# 4. Run the interactive CLI
+# 5. Run the interactive CLI with a real LLM
 make chat
 ```
 
@@ -116,9 +119,9 @@ MIT — see [LICENSE](./LICENSE).
 git clone git@github.com:xingseq/xingseq.git
 cd xingseq
 npm install
-cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY 等 LLM API Key
-make chat
+make chat-dry                   # 无需 API Key，先验证 mock 对话循环
+cp .env.example .env            # 编辑 .env 填入 DEEPSEEK_API_KEY 等 LLM API Key
+make chat                       # 真实 LLM 交互模式
 ```
 
 详细命令请查看 `Makefile`。

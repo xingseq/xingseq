@@ -37,7 +37,7 @@ mkdir -p ~/.xingseq/mail-app/logs
 ### 2. 拷贝 plist 到 LaunchAgents
 
 ```bash
-cp /Users/ws/Dev/xingseq/apps/mail-app/com.xingseq.mail-app.plist ~/Library/LaunchAgents/
+cp /path/to/xingseq/apps/mail-app/com.xingseq.mail-app.plist ~/Library/LaunchAgents/
 ```
 
 ### 3. 加载并启动服务
@@ -100,7 +100,7 @@ launchctl load ~/Library/LaunchAgents/com.xingseq.mail-app.plist
 | 配置项 | 说明 |
 |--------|------|
 | `Label` | 服务唯一标识：`com.xingseq.mail-app` |
-| `WorkingDirectory` | 运行目录：`/Users/ws/Dev/xingseq/apps/mail-app` |
+| `WorkingDirectory` | 运行目录：`/path/to/xingseq/apps/mail-app` |
 | `ProgramArguments` | 执行命令：`node src/cli.mjs gateway` |
 | `EnvironmentVariables.PATH` | 环境变量 PATH，包含 Homebrew 的 node |
 | `RunAtLoad` | 加载时立即启动 |

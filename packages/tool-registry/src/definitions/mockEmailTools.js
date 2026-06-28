@@ -20,11 +20,11 @@ export const mockEmailTools = [
         properties: {
           to: {
             type: 'string',
-            description: '收件人虚拟邮箱地址，例如 nmlsz@foxmail.com（即 mail-assistant 监听的账户）'
+            description: '收件人虚拟邮箱地址，例如 assistant@example.local（即 mail-assistant 监听的账户）'
           },
           from: {
             type: 'string',
-            description: '发件人虚拟邮箱地址，例如 tian_su@qq.com'
+            description: '发件人虚拟邮箱地址，例如 user@example.local'
           },
           subject: {
             type: 'string',

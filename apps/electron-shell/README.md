@@ -31,7 +31,7 @@ make electron-build
 
 ## 与原始设计的关系
 
-按 [`scripts/scaffold-workspace.mjs`](file:///Users/ws/Dev/xingseq/scripts/scaffold-workspace.mjs#L41-L41) 的原始定位，
+按 [`scripts/scaffold-workspace.mjs`](../../scripts/scaffold-workspace.mjs#L41-L41) 的原始定位，
 `electron-shell` 是 **L4 应用：Electron 主进程壳、IPC 网关、CLI 入口**。
 
 当前实现先聚焦在「桌面壳承载 workspace-app」这一最小可用形态；
