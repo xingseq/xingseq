@@ -122,7 +122,3 @@ packages/chat-core/
         ├── shell.js        ← shell 工具组
         └── web.js          ← 联网工具组
 ```
-
-## 来源
-
-抽取自 `apps/chat-app/src/`（chatSession.js、chatLoop.js、workspace.js、workspaceStore.js、security.js、tools.js、fsTools.js、shellTools.js、webTools.js）。`chat-app` 现已变为薄壳，只保留 CLI / Server / Web 入口。

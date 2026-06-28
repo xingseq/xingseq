@@ -1,13 +1,10 @@
 # @xingseq/tool-registry
 
-L2 领域服务：**工具定义注册中心** + **统一执行入口** + **敏感操作确认（依赖注入）**。
+L2 领域层 — 工具定义注册中心 + 统一执行入口 + 敏感操作确认。
 
-## 范围
+## 职责
 
-- ✅ 整体迁入 `electron/tools/definitions/` 全部 17 组工具定义（纯数据，零外部依赖）
-- ✅ 新写 `registry.js`：替代原 `executors/index.js` 的超大 switch
-- ✅ 新写 `confirmation.js`：移除对 electron / configManager / windowManager 的直接依赖，全部依赖注入
-- ❌ 不迁入：`executors/`（按业务归属，下个阶段分包）、`utils/security/`、`nodeFactory/graphTemplates/flowGraphToolsExamples`、`timerScheduler`
+管理 17 组工具定义（纯数据描述），提供注册 → 查找 → 派发的统一流程，并通过依赖注入实现跨平台的敏感操作确认（CLI / Electron / Web）。
 
 ## 子路径 exports
 

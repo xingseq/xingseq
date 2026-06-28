@@ -1,52 +1,46 @@
 # @xingseq/config-core
 
-L1 基座：通用配置 / 模型配置 / API Key 取值。
+L1 基座层 — 配置管理与持久化。
 
-## 迁入清单
+## 职责
 
-迁自原单体项目（原 759 行 → 当前约 400 行）。
+统一管理应用配置：模型配置、API Key 读取、通用设置、默认模型、工作目录等。所有配置读写均通过本包完成，上层无需关心存储细节。
 
-### 已迁入
+## 主要 API
 
 | 分类 | 函数 |
 | --- | --- |
 | 模型配置 | `saveModelConfig` / `loadModelConfig` |
-| API Key | `getApiKeyByProvider` + `getDeepSeekApiKey` / `getKimiApiKey` / `getQwenApiKey` / `getDoubaoApiKey` |
-| 通用设置（3s 缓存）| `saveGeneralConfig` / `loadGeneralConfig` / `clearGeneralConfigCache` |
-| 默认托底模型 | `saveDefaultModel` / `loadDefaultModel` |
+| API Key | `getApiKeyByProvider` / `getDeepSeekApiKey` / `getKimiApiKey` / `getQwenApiKey` / `getDoubaoApiKey` |
+| 通用设置 | `saveGeneralConfig` / `loadGeneralConfig` / `clearGeneralConfigCache` |
+| 默认模型 | `saveDefaultModel` / `loadDefaultModel` |
 | 工作目录 | `saveWorkingDirectory` / `loadWorkingDirectory` |
 | Tavily | `getTavilyApiKey` |
-| 代理开关 | `readProxyEnabled`（供 shared-utils 注入） |
-| 系统模型只读 | `loadSystemModelConfig`（路径走 env 注入） |
+| 代理开关 | `readProxyEnabled` |
+| 系统模型 | `loadSystemModelConfig` |
 | Provider 子模型 | `saveProviderSubModels` / `loadProviderSubModels` |
 
-### 未迁入（延后）
-
-- `saveCustomModelConfig` / `loadCustomModelConfig` → 依赖 sqlite database，待 **storage-core** 就绪
-- `init/saveAdvancedMode` / `init/saveUnrestrictedMode` / `saveAllowedExecutables` / `initAllowedExecutables` → 反向依赖 `tools/utils/security`，归 **L3 安全管理**
-
-## 解耦点
-
-| 原版依赖 | 新做法 |
-| --- | --- |
-| `import { app } from '../cli/runtime.js'` | `helpers.getUserDataPath()` 经 `shared-utils` env.getApp 注入 |
-| `electron/config/systemModels.json` 硬编码路径 | `setSharedEnv({ systemModelsPath })` 注入 |
-| `getLogger`、`safeJsonParse` 相对路径 | 改自 `@xingseq/shared-utils` 子路径 |
-
-## 壳层接入示例
+## 使用示例
 
 ```js
 import { setSharedEnv } from '@xingseq/shared-utils/env'
-import { readProxyEnabled } from '@xingseq/config-core'
-import { app } from 'electron'
+import { readProxyEnabled, loadModelConfig } from '@xingseq/config-core'
 import path from 'node:path'
 
+// 壳层启动时注入环境
 setSharedEnv({
-  isCLI: false,
-  getApp: async () => app,
-  proxyEnabledReader: readProxyEnabled,         // ← 把 config 读回到 proxyManager
+  isCLI: true,
+  getApp: async () => ({ getPath: (k) => path.join(os.homedir(), '.xingseq') }),
+  proxyEnabledReader: readProxyEnabled,
   systemModelsPath: path.join(__dirname, 'config', 'systemModels.json')
 })
+
+// 读取模型配置
+const models = await loadModelConfig()
 ```
 
-注意 `proxyEnabledReader` 是 config-core 暴露的 `readProxyEnabled`，把开关读法注入回 shared-utils 的 proxyManager，避免 L1 之间循环依赖。
+## 设计要点
+
+- 通过 `@xingseq/shared-utils` 的 `setSharedEnv` 注入运行时路径，不硬编码任何绝对路径。
+- 通用设置带 3 秒内存缓存，避免频繁磁盘 IO。
+- `readProxyEnabled` 作为回调注入 `shared-utils` 的 proxyManager，避免 L1 包间循环依赖。

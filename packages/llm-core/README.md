@@ -1,5 +1,64 @@
 # @xingseq/llm-core
 
+L1 基座层 — 多 Provider LLM 客户端与流式对话执行。
+
+## 职责
+
+封装 DeepSeek / Kimi / Qwen / Doubao 四家 LLM 的请求构建、流式解析、错误标准化、会话控制，对上层暴露统一的 `executeChat` 高层 API。
+
+## 子路径 exports
+
+| 路径 | 主要 API |
+| ---- | -------- |
+| `@xingseq/llm-core/clients` | `createDeepSeekClient` / `createKimiClient` / `createQwenClient` / `createDoubaoClient` / `createClient` / `refreshProxyAgent` |
+| `@xingseq/llm-core/requestBuilder` | `buildRequestParams({messages, mode, customParams, tools, provider, subModel})` / `addSystemPrompt` |
+| `@xingseq/llm-core/streamParser` | `parseStream(stream, onChunk)` |
+| `@xingseq/llm-core/errorHandler` | `parseApiError` / `logApiError` / `isRetryableWithFallback` |
+| `@xingseq/llm-core/sessionManager` | `createSessionController` / `abortSession` / `cleanupSession` |
+| `@xingseq/llm-core/executeChat` | `executeChat({apiKey, messages, provider, mode, customParams, tools, sessionId, onChunk})` |
+| `@xingseq/llm-core` | 上述全部聚合 barrel |
+
+## 使用示例
+
+```js
+import { executeChat } from '@xingseq/llm-core/executeChat'
+
+const result = await executeChat({
+  apiKey: 'sk-...',
+  messages: [{ role: 'user', content: 'Hello' }],
+  provider: 'deepseek',       // 'deepseek' | 'kimi' | 'qwen' | 'doubao'
+  mode: 'chat',               // 'chat' | 'reasoner' | 'ep-xxx'(doubao)
+  customParams: { temperature: 1.0, systemPrompt: 'You are helpful' },
+  onChunk: ({ type, content, done }) => process.stdout.write(content || '')
+})
+
+if (result.success) {
+  console.log(result.fullContent)
+}
+```
+
+## 设计要点
+
+- `apiKey` 显式入参，不读 configManager — 解耦配置层。
+- `tools` 显式入参（OpenAI tools 数组格式）— 不自动加载工具定义。
+- 不递归处理 `tool_calls`；首轮返回 `toolCalls` 数组，工具循环由上层（chat-core）驱动。
+- 所有 Provider 统一走 OpenAI SDK 兼容协议。
+
+## 外部依赖
+
+- `openai@^4.77.0`
+- `https-proxy-agent@^7.0.2`
+- `@xingseq/shared-utils`（同 workspace）
+
+## 测试
+
+```bash
+npm test --workspace=@xingseq/llm-core
+```
+
+smoke 测试覆盖：parseStream、buildRequestParams、parseApiError、客户端创建、executeChat 完整流水线（mock stream）。
+# @xingseq/llm-core
+
 L1 基座层 - 多 provider LLM 客户端、请求构建、流式解析、错误标准化、会话控制。
 
 ## 来源
