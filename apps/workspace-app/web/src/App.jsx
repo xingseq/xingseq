@@ -75,6 +75,11 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileContent, setFileContent] = useState('')
 
+  // 三栏可拖拽宽度
+  const [filePanelWidth, setFilePanelWidth] = useState(240)
+  const [chatWidth, setChatWidth] = useState(420)
+  const dragRef = useRef(null)
+
   // 流式状态
   const [streaming, setStreaming] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -136,6 +141,43 @@ export default function App() {
       setWorkspacePath(null)
     }
   }
+
+  // ===== 分栏拖拽调整大小 =====
+  function startDrag(e, pane) {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = pane === 'file' ? filePanelWidth : chatWidth
+    const minWidth = pane === 'file' ? 180 : 280
+    const maxWidth = pane === 'file' ? 400 : 900
+    dragRef.current = { pane, startX, startWidth, minWidth, maxWidth }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = pane === 'file' ? 'col-resize' : 'col-resize'
+  }
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragRef.current) return
+      const { pane, startX, startWidth, minWidth, maxWidth } = dragRef.current
+      const delta = pane === 'file'
+        ? e.clientX - startX
+        : startX - e.clientX
+      const next = Math.min(maxWidth, Math.max(minWidth, startWidth + delta))
+      if (pane === 'file') setFilePanelWidth(next)
+      else setChatWidth(next)
+    }
+    function onUp() {
+      if (!dragRef.current) return
+      dragRef.current = null
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
 
   // ===== 拉 workspace 列表 =====
   useEffect(() => {
@@ -539,7 +581,7 @@ export default function App() {
 
       <div className="main">
         {/* 左栏：文件树 */}
-        <aside className="sidebar file-panel">
+        <aside className="sidebar file-panel" style={{ width: filePanelWidth }}>
           <div className="panel-header">
             <span>📂 文件</span>
             <button onClick={() => { setExpandedDirs(new Set()); refreshFiles('.') }} title="刷新">↻</button>
@@ -561,19 +603,32 @@ export default function App() {
               />
             ))}
           </div>
-          {selectedFile && (
-            <div className="file-preview">
-              <div className="preview-header">
-                <span>{selectedFile.name}</span>
-                <button onClick={() => { setSelectedFile(null); setFileContent('') }} title="关闭">×</button>
-              </div>
-              <pre className="preview-content">{fileContent}</pre>
-            </div>
-          )}
         </aside>
 
+        <div className="resize-handle" onMouseDown={e => startDrag(e, 'file')} title="拖拽调整文件栏宽度" />
+
+        {/* 中间：文件内容 */}
+        <section className="content-area">
+          {selectedFile ? (
+            <>
+              <div className="content-header">
+                <span className="content-title" title={selectedFile.path}>{selectedFile.name}</span>
+                <button onClick={() => { setSelectedFile(null); setFileContent('') }} title="关闭">×</button>
+              </div>
+              <pre className="content-body">{fileContent}</pre>
+            </>
+          ) : (
+            <div className="content-empty">
+              <div className="content-empty-icon">📄</div>
+              <div>在左侧选择文件以查看内容</div>
+            </div>
+          )}
+        </section>
+
+        <div className="resize-handle" onMouseDown={e => startDrag(e, 'chat')} title="拖拽调整聊天栏宽度" />
+
         {/* 右栏：对话 */}
-        <section className="chat-area">
+        <section className="chat-area" style={{ width: chatWidth }}>
           {/* 对话列表 */}
           <div className="conv-bar">
             <button onClick={handleNew} className="btn-new">+ 新对话</button>

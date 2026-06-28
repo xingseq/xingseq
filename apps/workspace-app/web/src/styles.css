@@ -96,9 +96,9 @@ body {
 
 /* 文件面板 */
 .file-panel {
-  width: 260px;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--bg-secondary);
 }
@@ -173,46 +173,84 @@ body {
   overflow: hidden;
 }
 
-.file-preview {
-  border-top: 1px solid var(--border);
-  max-height: 200px;
-  overflow-y: auto;
+/* 中间内容区 */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg);
 }
-.preview-header {
+.content-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 8px 14px;
+  font-size: 13px;
   font-weight: 600;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
 }
-.preview-header button {
+.content-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.content-header button {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
 }
-.preview-header button:hover { color: var(--danger); }
-.preview-content {
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.4;
+.content-header button:hover { color: var(--danger); }
+.content-body {
+  flex: 1;
+  padding: 16px 18px;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
+  overflow-y: auto;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.content-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   color: var(--text-muted);
+  font-size: 14px;
+}
+.content-empty-icon { font-size: 48px; opacity: 0.5; }
+
+/* 拖拽分隔条 */
+.resize-handle {
+  width: 6px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
 }
 
 .empty { padding: 12px; color: var(--text-muted); font-size: 13px; }
 
 /* 对话区 */
 .chat-area {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--bg-secondary);
 }
 
 .conv-bar {
