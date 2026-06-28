@@ -50,6 +50,7 @@ backups/
 reports/
 
 .*/
+!.github/
 
 # 本地开发目录
 local/

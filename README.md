@@ -32,6 +32,40 @@ L2 Domain Services        tool-registry · memory-store · skill-host · subapp-
 L1 Foundations            shared-utils · config-core · storage-core · llm-core
 ```
 
+```mermaid
+graph TB
+    subgraph L4[L4 Applications]
+        chat-app
+        workspace-app
+        mail-app
+        llm-manager
+        electron-shell
+        flow-studio
+    end
+    subgraph L3[L3 Core Capabilities]
+        chat-core
+        agent
+        agent-runtime
+        flow-engine
+    end
+    subgraph L2[L2 Domain Services]
+        tool-registry
+        memory-store
+        skill-host
+        subapp-host
+    end
+    subgraph L1[L1 Foundations]
+        shared-utils
+        config-core
+        storage-core
+        llm-core
+    end
+
+    L4 --> L3
+    L3 --> L2
+    L2 --> L1
+```
+
 Dependency rule: upper layers may only import lower layers; same-layer modules do not depend on each other.
 
 ---
@@ -73,6 +107,19 @@ See `Makefile` for the full command list.
 
 ---
 
+## Background
+
+XingSeq started as a single-file Electron + React desktop assistant (2000+ files, 200+ modules, all tightly coupled). As the project grew — adding multi-provider LLM support, workspace sandboxing, a mail gateway, and tool orchestration — the monolith became unmaintainable.
+
+The refactoring strategy:
+1. **Extract layer by layer** — start from the lowest-level utilities (L1), prove them in isolation, then migrate domain services (L2) and core capabilities (L3) on top.
+2. **Migrate on demand** — only pull code into the new monorepo when an upper-layer app actually needs it. No big-bang copy.
+3. **Validate at each step** — each layer has a dry-run mode to verify integration without real API keys or network.
+
+The result is the current four-layer architecture with clear dependency constraints and per-workspace isolation.
+
+---
+
 ## Project Status
 
 | Layer | Status | Notes |
@@ -81,8 +128,6 @@ See `Makefile` for the full command list.
 | L2 Domain Services | Ready | tool-registry, memory-store |
 | L3 Core Capabilities | In Progress | chat-core ready; agent, agent-runtime, flow-engine scaffolded |
 | L4 Applications | 3 Ready | chat-app, workspace-app, mail-app ready; others scaffold/dev |
-
-This repo is the result of refactoring a previous 2000+ file monolith into a layered monorepo. We migrate code on demand rather than copying everything at once.
 
 ---
 
@@ -103,6 +148,12 @@ MIT — see [LICENSE](./LICENSE).
 ## 简介
 
 **星序引擎（XingSeq）** 是一个分层架构的 Agent Harness 框架，用于构建、运行和编排大语言模型智能体。内置 ReAct 对话循环、工具注册与派发、多提供商 LLM 客户端、工作区隔离和安全确认机制。
+
+### 从单体到分层
+
+星序引擎前身是一个 2000+ 文件的 Electron + React 桌面助手单体项目。随着功能膨胀（多模型适配、工作区沙箱、邮件网关、工具编排），单体架构已无法维护。
+
+重构策略：从最底层工具库（L1）开始逐层抽离，每一层独立验证后再向上迁移，按需拉入代码而非一次性复制。最终形成当前四层架构，层间依赖单向约束，每个工作区完全隔离。
 
 核心设计：
 
