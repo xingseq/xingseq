@@ -114,7 +114,7 @@ electron: ## 启动 Electron 桌面壳（需先构建 workspace-app 前端）
 	npm start -w apps/electron-shell
 
 electron-build: ## 构建 workspace-app 前端并启动 Electron 桌面壳
-	npm run build -w apps/electron-shell
+	npm run web:build -w apps/workspace-app
 	npm start -w apps/electron-shell
 
 # ---------------------------------------------------------------------------

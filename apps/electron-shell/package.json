@@ -13,7 +13,6 @@
   "scripts": {
     "start": "electron src/main.mjs",
     "dev": "NODE_ENV=development electron src/main.mjs",
-    "build": "npm run web:build -w apps/workspace-app",
     "test": "echo \"no tests yet\" && exit 0"
   },
   "devDependencies": {
