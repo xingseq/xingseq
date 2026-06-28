@@ -392,7 +392,7 @@ export default function App() {
     setInput('')
     setError(null)
     setBusy(true)
-    setStreaming({ content: '', reasoning: '', toolEvents: [] })
+    setStreaming({ content: '', reasoning: '', toolEvents: [], phase: 'working' })
 
     try {
       await chatStream({
@@ -405,26 +405,29 @@ export default function App() {
             setStreaming(prev => {
               if (!prev) return prev
               if (data.type === 'RESPONSE' || data.type === 'CONTENT') {
-                return { ...prev, content: prev.content + (data.content || '') }
+                return { ...prev, content: prev.content + (data.content || ''), phase: 'responding' }
               }
               if (data.type === 'THINK') {
-                return { ...prev, reasoning: prev.reasoning + (data.content || '') }
+                return { ...prev, reasoning: prev.reasoning + (data.content || ''), phase: 'thinking' }
               }
               return prev
             })
           } else if (event === 'tool_call') {
             setStreaming(prev => prev ? {
               ...prev,
+              phase: 'executing',
               toolEvents: [...prev.toolEvents, { type: 'call', ...data }]
             } : prev)
           } else if (event === 'tool_result') {
             setStreaming(prev => prev ? {
               ...prev,
+              phase: 'working',
               toolEvents: [...prev.toolEvents, { type: 'result', ...data }]
             } : prev)
           } else if (event === 'tool_denied') {
             setStreaming(prev => prev ? {
               ...prev,
+              phase: 'working',
               toolEvents: [...prev.toolEvents, { type: 'denied', ...data }]
             } : prev)
           } else if (event === 'confirm_request') {
@@ -443,6 +446,7 @@ export default function App() {
     } catch (err) {
       if (err.name !== 'AbortError') setError(err.message)
     } finally {
+      setStreaming(null)
       setBusy(false)
     }
   }
@@ -613,9 +617,29 @@ export default function App() {
                       {te.type === 'denied' && <span>✗ {te.name} 已拒绝</span>}
                     </div>
                   ))}
-                  {!streaming.content && !streaming.reasoning && streaming.toolEvents.length === 0 && (
-                    <span className="cursor">▌</span>
-                  )}
+                  {/* 实时工作状态指示器 */}
+                  <div className="ai-status">
+                    <span className="ai-status-dots">
+                      <span /><span /><span />
+                    </span>
+                    <span className="ai-status-text">
+                      {(() => {
+                        const te = streaming.toolEvents
+                        // 有未完成的工具调用 → 显示正在执行
+                        if (te.length > 0 && te[te.length - 1].type === 'call') {
+                          return `正在执行 ${te[te.length - 1].name}…`
+                        }
+                        switch (streaming.phase) {
+                          case 'thinking': return '正在思考…'
+                          case 'executing': return '正在执行工具…'
+                          case 'responding': return '正在回复…'
+                          case 'working':
+                            return te.length > 0 ? '正在处理工具结果…' : 'AI 正在工作…'
+                          default: return 'AI 正在工作…'
+                        }
+                      })()}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -623,13 +647,19 @@ export default function App() {
 
           {/* 输入区 */}
           <div
-            className={`input-area${dragOver ? ' drag-over' : ''}`}
+            className={`input-area${dragOver ? ' drag-over' : ''}${busy ? ' busy' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
             {error && <div className="error">{error}</div>}
             {dragOver && <div className="drop-hint">松开以插入文件路径</div>}
+            {busy && (
+              <div className="busy-hint">
+                <span className="busy-dot" />
+                <span>AI 正在工作，请稍候…</span>
+              </div>
+            )}
             <div className="input-row">
               <textarea
                 ref={inputRef}
@@ -641,7 +671,7 @@ export default function App() {
                 rows={2}
               />
               <button onClick={handleSend} disabled={busy || !input.trim()}>
-                {busy ? '…' : '发送'}
+                {busy ? '工作中…' : '发送'}
               </button>
             </div>
           </div>
