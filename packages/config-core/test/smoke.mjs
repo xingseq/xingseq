@@ -151,17 +151,35 @@ await test('loadSystemModelConfig 注入 path 后能读', async () => {
 })
 
 // ---------- 9. Provider 子模型往返 ----------
-await test('loadProviderSubModels 首次落盘默认表', async () => {
+await test('loadProviderSubModels 首次落盘默认表到全局路径', async () => {
   const r = await cfg.loadProviderSubModels()
   assert.equal(r.success, true)
   assert.equal(typeof r.data.deepseek, 'object')
-  // 文件应已被写
-  const fp = path.join(tmpRoot, 'config', 'providerSubModels.json')
+  // 文件应已被写到全局路径 ~/.xingseq/config/
+  const globalDir = cfg.getGlobalConfigPath()
+  const fp = path.join(globalDir, 'providerSubModels.json')
   await fs.access(fp)
 })
+await test('loadProviderSubModels app级覆盖全局', async () => {
+  // 先写 app 级配置
+  const appFp = path.join(tmpRoot, 'config', 'providerSubModels.json')
+  await fs.mkdir(path.join(tmpRoot, 'config'), { recursive: true })
+  await fs.writeFile(appFp, JSON.stringify({
+    deepseek: {
+      name: 'DeepSeek-AppLevel',
+      subModels: [{ value: 'deepseek-v4-pro', label: 'pro' }]
+    }
+  }), 'utf-8')
+  const r = await cfg.loadProviderSubModels()
+  assert.equal(r.success, true)
+  assert.equal(r.data.deepseek.name, 'DeepSeek-AppLevel')
+  // 清理 app 级，后续测试不受影响
+  await fs.rm(appFp)
+})
 await test('loadProviderSubModels 自动补全 isReasoner', async () => {
-  const fp = path.join(tmpRoot, 'config', 'providerSubModels.json')
-  // 写一个缺 isReasoner 的版本
+  // 写到全局路径，验证补全逻辑
+  const globalDir = cfg.getGlobalConfigPath()
+  const fp = path.join(globalDir, 'providerSubModels.json')
   await fs.writeFile(fp, JSON.stringify({
     deepseek: {
       name: 'DeepSeek',
@@ -172,6 +190,47 @@ await test('loadProviderSubModels 自动补全 isReasoner', async () => {
   assert.equal(r.success, true)
   const pro = r.data.deepseek.subModels.find(m => m.value === 'deepseek-v4-pro')
   assert.equal(pro.isReasoner, true) // 应被补全为 true（与默认表一致）
+})
+
+// ---------- 10. 两级 fallback 逻辑 ----------
+await test('loadModelConfig 全局 fallback：app级不存在时读全局', async () => {
+  // 确保 app 级 models.json 不存在
+  const appFp = path.join(tmpRoot, 'config', 'models.json')
+  try { await fs.rm(appFp) } catch {}
+  // 写入全局 models.json
+  const globalDir = cfg.getGlobalConfigPath()
+  await fs.mkdir(globalDir, { recursive: true })
+  const globalFp = path.join(globalDir, 'models.json')
+  await fs.writeFile(globalFp, JSON.stringify({
+    models: [{ id: 'global-model', name: 'GlobalTest', provider: 'kimi', apiKey: 'sk-global', isDefault: true }]
+  }), 'utf-8')
+  const r = await cfg.loadModelConfig()
+  assert.equal(r.success, true)
+  assert.equal(r.data.models[0].id, 'global-model')
+  assert.equal(r.data.models[0].provider, 'kimi')
+})
+await test('loadModelConfig app级优先于全局', async () => {
+  // 写 app 级 models.json
+  await fs.mkdir(path.join(tmpRoot, 'config'), { recursive: true })
+  const appFp = path.join(tmpRoot, 'config', 'models.json')
+  await fs.writeFile(appFp, JSON.stringify({
+    models: [{ id: 'app-model', name: 'AppTest', provider: 'deepseek', apiKey: 'sk-app', isDefault: true }]
+  }), 'utf-8')
+  const r = await cfg.loadModelConfig()
+  assert.equal(r.success, true)
+  assert.equal(r.data.models[0].id, 'app-model')
+  // 清理
+  await fs.rm(appFp)
+})
+await test('saveGlobalModelConfig 写入全局路径', async () => {
+  const r = await cfg.saveGlobalModelConfig({
+    models: [{ id: 'written-global', name: 'WrittenGlobal', provider: 'qwen', apiKey: 'sk-qwen', isDefault: true }]
+  })
+  assert.equal(r.success, true)
+  const globalDir = cfg.getGlobalConfigPath()
+  const content = await fs.readFile(path.join(globalDir, 'models.json'), 'utf-8')
+  const data = JSON.parse(content)
+  assert.equal(data.models[0].id, 'written-global')
 })
 
 // ---------- 清理 ----------

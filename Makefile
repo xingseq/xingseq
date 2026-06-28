@@ -118,16 +118,39 @@ electron-build: ## 构建 workspace-app 前端并启动 Electron 桌面壳
 	npm start -w apps/electron-shell
 
 # ---------------------------------------------------------------------------
+# LLM 管理器
+# ---------------------------------------------------------------------------
+.PHONY: llm llm-server llm-web llm-web-install llm-web-dev
+
+llm-server: ## 启动 LLM 管理器后端（:7820）
+	npm run server -w apps/llm-manager
+
+llm-web: ## 启动 LLM 管理器前端（Vite :5178）
+	npm run web -w apps/llm-manager
+
+llm-web-install: ## 安装 LLM 管理器前端依赖（首次）
+	npm run web:install -w apps/llm-manager
+
+llm-web-dev: ## 一键启动 LLM 管理器开发环境（后端 :7820 + 前端 :5178）
+	@echo "启动中... 浏览器打开 http://localhost:5178（Ctrl+C 退出）"
+	@trap 'kill 0' EXIT; \
+	npm run server -w apps/llm-manager & \
+	npm run web -w apps/llm-manager
+
+# ---------------------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------------------
-.PHONY: build web-build ws-web-build
-build: web-build ws-web-build ## 构建所有产物
+.PHONY: build web-build ws-web-build llm-web-build
+build: web-build ws-web-build llm-web-build ## 构建所有产物
 
 web-build: ## 构建 chat-app Web 前端
 	npm run web:build -w apps/chat-app
 
 ws-web-build: ## 构建 workspace-app Web 前端
 	npm run web:build -w apps/workspace-app
+
+llm-web-build: ## 构建 llm-manager Web 前端
+	npm run web:build -w apps/llm-manager
 
 # ---------------------------------------------------------------------------
 # 代码质量

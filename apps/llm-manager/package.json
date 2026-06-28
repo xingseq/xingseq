@@ -1,0 +1,38 @@
+{
+  "name": "@xingseq/llm-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 应用：LLM 模型配置管理中心（全局模型增删、API Key、默认模型选择、连通性测试）",
+  "main": "src/index.js",
+  "bin": {
+    "llm-manager": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "server": "node src/server.mjs",
+    "web:install": "npm install --prefix web",
+    "web": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web",
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@xingseq/shared-utils": "*",
+    "@xingseq/config-core": "*",
+    "@xingseq/llm-core": "*"
+  },
+  "xingseq": {
+    "stage": 4,
+    "status": "scaffold",
+    "features": [
+      "global model config management",
+      "api key management",
+      "default model selection",
+      "connection test",
+      "http server + web ui"
+    ]
+  }
+}

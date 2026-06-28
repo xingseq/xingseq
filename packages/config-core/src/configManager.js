@@ -20,7 +20,7 @@ import path from 'path'
 import { promises as fs } from 'fs'
 import { getLogger } from '@xingseq/shared-utils/logger'
 import { safeJsonParse } from '@xingseq/shared-utils/jsonUtils'
-import { getUserDataPath, getSystemModelsPath } from './helpers.js'
+import { getUserDataPath, getGlobalConfigPath, getSystemModelsPath } from './helpers.js'
 
 const logger = getLogger('Config')
 
@@ -49,23 +49,28 @@ export async function saveModelConfig(config) {
 export async function loadModelConfig() {
   try {
     const userDataPath = await getUserDataPath()
-    const configPath = path.join(userDataPath, 'config', 'models.json')
-    try {
-      const content = await fs.readFile(configPath, 'utf-8')
-      const config = safeJsonParse(content, configPath)
-      logger.debug('模型配置已加载')
-      return { success: true, data: config }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        const defaultConfig = {
-          models: [
-            { id: 'deepseek-default', name: 'DeepSeek', provider: 'deepseek', apiKey: '', isDefault: true }
-          ]
-        }
-        return { success: true, data: defaultConfig }
+    const appConfigPath = path.join(userDataPath, 'config', 'models.json')
+    const globalConfigPath = path.join(getGlobalConfigPath(), 'models.json')
+
+    // 两级查找：app 级优先，全局 fallback
+    for (const configPath of [appConfigPath, globalConfigPath]) {
+      try {
+        const content = await fs.readFile(configPath, 'utf-8')
+        const config = safeJsonParse(content, configPath)
+        logger.debug('模型配置已加载:', configPath)
+        return { success: true, data: config }
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw err
       }
-      throw err
     }
+
+    // 两级均不存在，返回默认配置
+    const defaultConfig = {
+      models: [
+        { id: 'deepseek-default', name: 'DeepSeek', provider: 'deepseek', apiKey: '', isDefault: true }
+      ]
+    }
+    return { success: true, data: defaultConfig }
   } catch (error) {
     logger.error('加载模型配置失败:', error)
     return { success: false, error: error.message, data: { models: [] } }
@@ -367,34 +372,112 @@ export async function saveProviderSubModels(providers) {
   }
 }
 
+// ==================== 全局配置写入（供 llm-manager 使用） ====================
+
+/**
+ * 保存模型配置到全局路径 ~/.xingseq/config/models.json
+ * 仅由 llm-manager 调用，其他应用只读
+ */
+export async function saveGlobalModelConfig(config) {
+  try {
+    const configDir = getGlobalConfigPath()
+    await fs.mkdir(configDir, { recursive: true })
+    const configPath = path.join(configDir, 'models.json')
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    logger.debug('全局模型配置已保存:', configPath)
+    return { success: true }
+  } catch (error) {
+    logger.error('保存全局模型配置失败:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * 保存 Provider 子模型配置到全局路径 ~/.xingseq/config/providerSubModels.json
+ * 仅由 llm-manager 调用，其他应用只读
+ */
+export async function saveGlobalProviderSubModels(providers) {
+  try {
+    const configDir = getGlobalConfigPath()
+    await fs.mkdir(configDir, { recursive: true })
+    const configPath = path.join(configDir, 'providerSubModels.json')
+    await fs.writeFile(configPath, JSON.stringify(providers, null, 2), 'utf-8')
+    logger.debug('全局 Provider 子模型配置已保存:', configPath)
+    return { success: true }
+  } catch (error) {
+    logger.error('保存全局 Provider 子模型配置失败:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * 保存默认模型到全局路径 ~/.xingseq/config/general.json
+ * 仅由 llm-manager 调用
+ */
+export async function saveGlobalDefaultModel(config) {
+  try {
+    const configDir = getGlobalConfigPath()
+    await fs.mkdir(configDir, { recursive: true })
+    const configPath = path.join(configDir, 'general.json')
+    let generalConfig = {}
+    try {
+      const content = await fs.readFile(configPath, 'utf-8')
+      generalConfig = safeJsonParse(content, configPath)
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err
+    }
+    generalConfig.defaultModel = {
+      provider: config.provider || 'deepseek',
+      subModel: config.subModel || null
+    }
+    await fs.writeFile(configPath, JSON.stringify(generalConfig, null, 2), 'utf-8')
+    logger.debug('全局默认模型配置已保存:', configPath)
+    return { success: true }
+  } catch (error) {
+    logger.error('保存全局默认模型配置失败:', error)
+    return { success: false, error: error.message }
+  }
+}
+
 export async function loadProviderSubModels() {
   try {
     const userDataPath = await getUserDataPath()
-    const configPath = path.join(userDataPath, 'config', 'providerSubModels.json')
-    try {
-      const content = await fs.readFile(configPath, 'utf-8')
-      const providers = safeJsonParse(content, configPath)
-      // 补全 isReasoner 字段
-      Object.entries(providers).forEach(([key, provider]) => {
-        const defaultProvider = DEFAULT_PROVIDER_SUB_MODELS[key]
-        if (defaultProvider && provider.subModels) {
-          provider.subModels.forEach(model => {
-            if (model.isReasoner === undefined) {
-              const defaultModel = defaultProvider.subModels.find(m => m.value === model.value)
-              model.isReasoner = defaultModel ? !!defaultModel.isReasoner : false
-            }
-          })
-        }
-      })
-      return { success: true, data: providers }
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // 首次使用，落盘默认配置
-        await saveProviderSubModels(DEFAULT_PROVIDER_SUB_MODELS)
-        return { success: true, data: DEFAULT_PROVIDER_SUB_MODELS }
+    const appConfigPath = path.join(userDataPath, 'config', 'providerSubModels.json')
+    const globalConfigPath = path.join(getGlobalConfigPath(), 'providerSubModels.json')
+
+    // 两级查找：app 级优先，全局 fallback
+    for (const configPath of [appConfigPath, globalConfigPath]) {
+      try {
+        const content = await fs.readFile(configPath, 'utf-8')
+        const providers = safeJsonParse(content, configPath)
+        // 补全 isReasoner 字段
+        Object.entries(providers).forEach(([key, provider]) => {
+          const defaultProvider = DEFAULT_PROVIDER_SUB_MODELS[key]
+          if (defaultProvider && provider.subModels) {
+            provider.subModels.forEach(model => {
+              if (model.isReasoner === undefined) {
+                const defaultModel = defaultProvider.subModels.find(m => m.value === model.value)
+                model.isReasoner = defaultModel ? !!defaultModel.isReasoner : false
+              }
+            })
+          }
+        })
+        logger.debug('Provider 子模型配置已加载:', configPath)
+        return { success: true, data: providers }
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw err
       }
-      throw err
     }
+
+    // 两级均不存在，落盘默认配置到全局路径
+    const globalDir = getGlobalConfigPath()
+    await fs.mkdir(globalDir, { recursive: true })
+    await fs.writeFile(
+      path.join(globalDir, 'providerSubModels.json'),
+      JSON.stringify(DEFAULT_PROVIDER_SUB_MODELS, null, 2),
+      'utf-8'
+    )
+    return { success: true, data: DEFAULT_PROVIDER_SUB_MODELS }
   } catch (error) {
     logger.error('加载模型提供商子模型配置失败:', error)
     return { success: false, error: error.message, data: DEFAULT_PROVIDER_SUB_MODELS }

@@ -50,7 +50,11 @@ export {
   // Provider 子模型
   saveProviderSubModels,
   loadProviderSubModels,
-  DEFAULT_PROVIDER_SUB_MODELS
+  DEFAULT_PROVIDER_SUB_MODELS,
+  // 全局配置写入（供 llm-manager）
+  saveGlobalModelConfig,
+  saveGlobalProviderSubModels,
+  saveGlobalDefaultModel
 } from './configManager.js'
 
-export { getUserDataPath, getSystemModelsPath } from './helpers.js'
+export { getUserDataPath, getGlobalConfigPath, getSystemModelsPath } from './helpers.js'
