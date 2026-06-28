@@ -1,178 +1,176 @@
 # XingSeq
 
-> A layered Agent Harness framework for building, running, and orchestrating LLM agents. ReAct loop, tool registry, multi-provider LLM support, workspace isolation, and safety confirmation out of the box.
+[![CI](https://github.com/xingseq/xingseq/actions/workflows/ci.yml/badge.svg)](https://github.com/xingseq/xingseq/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 
-[中文简介](#简介)
+**XingSeq** is an Agent Harness framework — it handles the *runtime plumbing* so you can focus on what your agent actually does.
 
----
+You define tools. XingSeq handles the ReAct loop, streams tokens from any LLM provider, dispatches tool calls through a registry, enforces safety confirmation before destructive operations, and persists conversations per workspace. All in plain Node.js, no Python, no heavy abstractions.
 
-## Highlights
+> **TL;DR** — Clone, `npm install`, `make chat-dry`. You'll see a full tool-calling loop running locally with zero API keys.
 
-- **ReAct loop**: streaming chat session with tool-call planning, execution, and observation.
-- **Tool registry**: builtin tool groups (`workspace`, `fs`, `shell`, `web`, `email`) plus plugin loading.
-- **Multi-provider LLM clients**: DeepSeek, Kimi, Qwen, Doubao, with a unified streaming/error handling layer.
-- **Workspace isolation**: per-workspace storage, path sandboxing, and memory separation.
-- **Safety confirmation**: four-layer guard for destructive fs/shell operations before execution.
-- **Mail gateway**: IMAP polling + SMTP auto-reply, integrated with the chat engine.
-- **HTTP + SSE server + Vite React frontend** for chat-app and workspace-app.
-- **Monorepo**: npm workspaces + Makefile, layered dependency constraints (L4 apps → L3 cores → L2 domains → L1 bases).
+[中文](./README_zh.md)
 
 ---
 
-## Architecture
+## Why XingSeq?
 
-```text
-L4 Applications    chat-app · workspace-app · mail-app · llm-manager
-                          · electron-shell · flow-studio · chatroom-app · hello-chat
-                          ↑
-L3 Core Capabilities      chat-core (ready) · agent · agent-runtime · flow-engine
-                          ↑
-L2 Domain Services        tool-registry · memory-store · skill-host · subapp-host
-                          ↑
-L1 Foundations            shared-utils · config-core · storage-core · llm-core
-```
+Most agent frameworks give you one of two things: a thin wrapper around chat completions, or a sprawling platform with its own DSL, database, and deployment story.
 
-```mermaid
-graph TB
-    subgraph L4[L4 Applications]
-        chat-app
-        workspace-app
-        mail-app
-        llm-manager
-        electron-shell
-        flow-studio
-    end
-    subgraph L3[L3 Core Capabilities]
-        chat-core
-        agent
-        agent-runtime
-        flow-engine
-    end
-    subgraph L2[L2 Domain Services]
-        tool-registry
-        memory-store
-        skill-host
-        subapp-host
-    end
-    subgraph L1[L1 Foundations]
-        shared-utils
-        config-core
-        storage-core
-        llm-core
-    end
+XingSeq sits in between:
 
-    L4 --> L3
-    L3 --> L2
-    L2 --> L1
-```
-
-Dependency rule: upper layers may only import lower layers; same-layer modules do not depend on each other.
+- **You own the process.** It's a Node.js library, not a platform. No servers to deploy, no SDK lock-in.
+- **Tools are first-class.** Register tool groups with their executors; the framework handles dispatch, argument validation, and four-layer safety guards.
+- **Workspace isolation.** Each workspace gets its own tool scope, conversation history, and storage — no global state leaking between sessions.
+- **Multi-provider out of the box.** DeepSeek, Kimi (Moonshot), Qwen, Doubao — unified streaming, error handling, and session control.
+- **Runs without API keys.** Every app has a `dry-run` mode with a mock LLM, so you can validate your tool wiring without burning tokens.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Clone
 git clone git@github.com:xingseq/xingseq.git
 cd xingseq
-
-# 2. Install dependencies for all workspaces
 npm install
 
-# 3. Verify without an API key (mock LLM + tool loop)
+# Verify the full tool-calling loop — no API key needed
 make chat-dry
+```
 
-# 4. Configure at least one LLM API key for live mode
+To talk to a real LLM:
+
+```bash
 cp .env.example .env
-# Edit .env and set DEEPSEEK_API_KEY (or KIMI_API_KEY / QWEN_API_KEY / DOUBAO_API_KEY)
-
-# 5. Run the interactive CLI with a real LLM
+# Set at least one: DEEPSEEK_API_KEY / KIMI_API_KEY / QWEN_API_KEY / DOUBAO_API_KEY
 make chat
 ```
 
-Other useful commands:
+### Other Commands
 
-```bash
-make chat-dry       # dry-run mode, no real LLM calls
-make chat-list      # list available tools
-make server         # start HTTP+SSE backend on :3001
-make web-dev        # start backend + Vite frontend
-make ws             # start workspace-app CLI
-make mail-dry       # start mail gateway in offline dry mode
-make test           # run smoke test
+| Command | What it does |
+|---------|-------------|
+| `make chat-dry` | Dry-run: mock LLM + real tool dispatch |
+| `make chat` | Interactive CLI with real LLM |
+| `make web-dev` | HTTP+SSE backend (:3001) + Vite React frontend (:5173) |
+| `make ws` | Workspace-app CLI (file/shell tools scoped to a directory) |
+| `make mail-dry` | Mail gateway in offline mode |
+| `make test` | Smoke test |
+
+Run `make` to see the full list.
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph L4[Applications]
+        chat-app
+        workspace-app
+        mail-app
+    end
+    subgraph L3[Core Engine]
+        chat-core
+    end
+    subgraph L2[Domain Services]
+        tool-registry
+        memory-store
+    end
+    subgraph L1[Foundations]
+        llm-core
+        config-core
+        storage-core
+        shared-utils
+    end
+
+    chat-app --> chat-core
+    workspace-app --> chat-core
+    mail-app --> chat-core
+    chat-core --> tool-registry
+    chat-core --> llm-core
+    chat-core --> config-core
+    tool-registry --> shared-utils
+    llm-core --> config-core
+    llm-core --> shared-utils
+    config-core --> storage-core
+    storage-core --> shared-utils
 ```
 
-See `Makefile` for the full command list.
+**Dependency rule:** upper layers import lower layers only. Same-layer packages never import each other.
+
+### Layer Responsibilities
+
+| Layer | Packages | Role |
+|-------|----------|------|
+| **L1 Foundations** | `shared-utils` · `config-core` · `storage-core` · `llm-core` | Logger, config, encrypted storage, multi-provider LLM client |
+| **L2 Domain** | `tool-registry` · `memory-store` · `skill-host` · `subapp-host` | Tool dispatch, conversation persistence, plugin management |
+| **L3 Engine** | `chat-core` · `agent` · `flow-engine` · `agent-runtime` | ReAct loop, workspace session, safety guards |
+| **L4 Apps** | `chat-app` · `workspace-app` · `mail-app` · `llm-manager` · ... | End-user applications built on the stack |
+
+---
+
+## How It Works
+
+A single chat turn:
+
+```
+User message
+    → chatLoop.js (depth 0)
+        → LLM returns tool_calls
+        → registry.dispatch(toolCall)
+            → safety confirmation (if destructive)
+            → executor runs, returns result
+        → tool result appended to messages
+    → chatLoop.js (depth 1)
+        → LLM returns final text
+    → response streamed to user
+```
+
+The loop continues until the LLM stops requesting tools or hits `maxDepth` (default 5).
+
+### Tool Safety — Four Layers
+
+1. **Path sandboxing** — all file operations confined to `workspace.filesDir`
+2. **Command allowlist** — only pre-approved shell commands pass
+3. **Argument filtering** — dangerous flags (`--force`, `rm -rf /`) are rejected
+4. **User confirmation** — destructive ops require explicit approval (CLI prompt / Web dialog)
 
 ---
 
 ## Background
 
-XingSeq started as a single-file Electron + React desktop assistant (2000+ files, 200+ modules, all tightly coupled). As the project grew — adding multi-provider LLM support, workspace sandboxing, a mail gateway, and tool orchestration — the monolith became unmaintainable.
+XingSeq was extracted from a 2000+ file Electron desktop assistant. The original monolith worked, but changes in one area broke three others — no clear boundaries, shared mutable state everywhere.
 
-The refactoring strategy:
-1. **Extract layer by layer** — start from the lowest-level utilities (L1), prove them in isolation, then migrate domain services (L2) and core capabilities (L3) on top.
-2. **Migrate on demand** — only pull code into the new monorepo when an upper-layer app actually needs it. No big-bang copy.
-3. **Validate at each step** — each layer has a dry-run mode to verify integration without real API keys or network.
+The rewrite strategy was simple:
+1. Start from the bottom (L1) — pure utilities with zero coupling
+2. Migrate code only when a real app needs it — no speculative extraction
+3. Validate each layer in isolation with dry-run mode before stacking the next
 
-The result is the current four-layer architecture with clear dependency constraints and per-workspace isolation.
+The result: 12 packages with enforced single-direction dependencies, running the same features with half the complexity.
 
 ---
 
 ## Project Status
 
-| Layer | Status | Notes |
-|---|---|---|
-| L1 Foundations | Migrated | shared-utils, config-core, storage-core, llm-core |
-| L2 Domain Services | Ready | tool-registry, memory-store |
-| L3 Core Capabilities | In Progress | chat-core ready; agent, agent-runtime, flow-engine scaffolded |
-| L4 Applications | 3 Ready | chat-app, workspace-app, mail-app ready; others scaffold/dev |
+| Layer | Status |
+|-------|--------|
+| L1 Foundations | Stable — all 4 packages migrated and tested |
+| L2 Domain | Stable — tool-registry and memory-store in production use |
+| L3 Engine | chat-core stable; agent / flow-engine / agent-runtime scaffolded |
+| L4 Apps | chat-app, workspace-app, mail-app fully functional; others in dev |
+
+> This is an active project. APIs may change between minor versions until 1.0.
 
 ---
 
-## Ecosystem
+## Contributing
 
-- **XingSeq** (this repo): the Agent Harness framework itself — runtime, tool system, and multi-provider LLM orchestration.
-- **cmdseal**: system-level security isolation and sandboxing for dangerous operations.
-- **AgentPost**: mobile/web interaction layer for end users.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions, commit conventions, and code standards.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
-
----
-
-## 简介
-
-**星序引擎（XingSeq）** 是一个分层架构的 Agent Harness 框架，用于构建、运行和编排大语言模型智能体。内置 ReAct 对话循环、工具注册与派发、多提供商 LLM 客户端、工作区隔离和安全确认机制。
-
-### 从单体到分层
-
-星序引擎前身是一个 2000+ 文件的 Electron + React 桌面助手单体项目。随着功能膨胀（多模型适配、工作区沙箱、邮件网关、工具编排），单体架构已无法维护。
-
-重构策略：从最底层工具库（L1）开始逐层抽离，每一层独立验证后再向上迁移，按需拉入代码而非一次性复制。最终形成当前四层架构，层间依赖单向约束，每个工作区完全隔离。
-
-核心设计：
-
-- **L1 基座**：shared-utils、config-core、storage-core、llm-core
-- **L2 领域**：tool-registry、memory-store、skill-host、subapp-host
-- **L3 能力**：chat-core（已落地）、agent、agent-runtime、flow-engine
-- **L4 应用**：chat-app、workspace-app、mail-app 已可用，其余正在迁移
-
-本项目由原单体项目（2000+ 文件）按层拆分而来，采用按需迁入策略，不一次性复制全部代码。
-
-快速开始：
-
-```bash
-git clone git@github.com:xingseq/xingseq.git
-cd xingseq
-npm install
-make chat-dry                   # 无需 API Key，先验证 mock 对话循环
-cp .env.example .env            # 编辑 .env 填入 DEEPSEEK_API_KEY 等 LLM API Key
-make chat                       # 真实 LLM 交互模式
-```
-
-详细命令请查看 `Makefile`。
+[MIT](./LICENSE)
