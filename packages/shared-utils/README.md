@@ -4,7 +4,7 @@ L1 基座：logger / proxy / timestamp / 通用常量。**纯 Node、不依赖 e
 
 ## 迁入清单
 
-| 当前文件 | 源文件（xingseq-develop） | 改造 |
+| 当前文件 | 来源 | 改造 |
 |---|---|---|
 | `src/logger.js` | `electron/utils/logger.js` | 去掉 `cli/runtime.js` 静态依赖，改为 env 注入 |
 | `src/proxyManager.js` | `electron/utils/proxyManager.js` | 去掉 `data/configManager.js` 依赖，改为 env 注入 |
@@ -50,11 +50,3 @@ logger.info('hello')
 - 不允许 import 任何 `@xingseq/*` 包（自身是 L1 基座，反向依赖会破坏分层）。
 - 不允许 import `electron`/`react`/`reactflow` 等运行时强绑定包。
 - 唯一允许的运行时依赖：`electron-log`（动态 import，CLI 模式下可被替换）。
-# @xingseq/shared-utils
-
-L1 基座：logger / proxy / timestamp / 通用常量
-
-- 计划阶段：阶段 1
-- 当前状态：脚手架占位，尚未迁入代码
-
-迁入来源与边界详见根目录 README 与拆分蓝图。

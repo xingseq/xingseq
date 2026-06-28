@@ -93,7 +93,7 @@ const registry = createWorkspaceRegistry({
 // 之后用 registry.register('myGroup', { ... }) 注册 app 自己的工具
 ```
 
-## 安全机制（与 xingseq-develop 一致）
+## 安全机制
 
 四层防护：
 1. **前端确认**：Web 端 30s 倒计时弹窗 / CLI 默认放行（与 develop 一致）

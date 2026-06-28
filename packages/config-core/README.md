@@ -4,7 +4,7 @@ L1 基座：通用配置 / 模型配置 / API Key 取值。
 
 ## 迁入清单
 
-裁剪自 `xingseq-develop/electron/data/configManager.js`（原 759 行 → 当前约 400 行）。
+迁自原单体项目（原 759 行 → 当前约 400 行）。
 
 ### 已迁入
 
