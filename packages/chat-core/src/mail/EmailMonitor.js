@@ -48,6 +48,8 @@ export class EmailMonitor extends EventEmitter {
     this.reconnectResetDelay = 5 * 60 * 1000
     this.reconnecting = false
     this.reconnectResetTimer = null
+    this._reconnectTimeout = null
+    this._reconnectFailurePending = false
 
     this._depsPromise = this.checkDependencies()
   }
@@ -155,6 +157,8 @@ export class EmailMonitor extends EventEmitter {
       this.reconnectResetTimer = null
     }
 
+    this._clearReconnectTimeout()
+
     if (this.imap) {
       try { this.imap.end() } catch (_) { /* ignore */ }
     }
@@ -164,6 +168,8 @@ export class EmailMonitor extends EventEmitter {
 
   onImapReady() {
     console.log('[EmailMonitor] IMAP 连接就绪')
+    this._clearReconnectTimeout()
+    this._reconnectFailurePending = false
     this.reconnectAttempts = 0
     this.reconnecting = false
     this.checkNewEmails()
@@ -171,7 +177,8 @@ export class EmailMonitor extends EventEmitter {
 
   onImapError(err) {
     if (this.reconnecting) {
-      console.log('[EmailMonitor] 重连中的错误，忽略:', err.code || err.message)
+      console.log('[EmailMonitor] 重连中的错误:', err.code || err.message)
+      this._handleReconnectFailure('reconnect-error')
       return
     }
 
@@ -189,7 +196,11 @@ export class EmailMonitor extends EventEmitter {
 
   onImapEnd() {
     console.log('[EmailMonitor] IMAP 连接结束')
-    if (this.running && !this.reconnecting) {
+    if (this.reconnecting) {
+      this._handleReconnectFailure('reconnect-end')
+      return
+    }
+    if (this.running) {
       this.scheduleReconnect('disconnect')
     }
   }
@@ -226,12 +237,39 @@ export class EmailMonitor extends EventEmitter {
     }, delay)
   }
 
+  /**
+   * 清除重连超时定时器
+   */
+  _clearReconnectTimeout() {
+    if (this._reconnectTimeout) {
+      clearTimeout(this._reconnectTimeout)
+      this._reconnectTimeout = null
+    }
+  }
+
+  /**
+   * 统一处理重连过程中的失败（error / end / 超时）。
+   * 使用 _reconnectFailurePending 防抖，避免 error+end 连续触发导致重复调度。
+   */
+  _handleReconnectFailure(reason) {
+    if (this._reconnectFailurePending) return
+    this._reconnectFailurePending = true
+
+    this._clearReconnectTimeout()
+    this.reconnecting = false
+
+    if (this.running) {
+      this.scheduleReconnect(reason)
+    }
+  }
+
   async reconnect() {
     if (!this.running) {
       this.reconnecting = false
       return
     }
 
+    this._reconnectFailurePending = false
     console.log('[EmailMonitor] 尝试重连...')
 
     try {
@@ -248,8 +286,20 @@ export class EmailMonitor extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, 500))
       await this.initializeConnections()
       this.imap.connect()
+
+      // 超时兜底：node-imap 的 connect() 是异步的，结果通过事件通知。
+      // 如果在限定时间内未收到 ready 事件（reconnecting 未被重置），
+      // 视为重连失败，重置状态并重新调度。
+      this._clearReconnectTimeout()
+      this._reconnectTimeout = setTimeout(() => {
+        if (this.reconnecting && this.running) {
+          console.warn('[EmailMonitor] 重连超时，未收到 ready 事件')
+          this._handleReconnectFailure('reconnect-timeout')
+        }
+      }, this.reconnectDelay * 3)
     } catch (err) {
       console.error('[EmailMonitor] 重连失败:', err.message)
+      this._reconnectFailurePending = false
       this.reconnecting = false
       if (this.running) {
         this.scheduleReconnect('reconnect-failed')
