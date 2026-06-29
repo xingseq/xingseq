@@ -225,6 +225,12 @@ async function route(req, res) {
       })
       session = createProvider({ id: conversationId, workspace: ws, registry })
 
+      // 注入系统提示词：让模型以星序引擎身份回复
+      session.messages.push({
+        role: 'system',
+        content: '你是星序引擎（XingSeq），一个 AI 编程助手。你帮助用户编写代码、分析问题、操作文件。回复时自称"星序"或"我"，不要提及 Claude、Anthropic 或其他 AI 产品的名字。用简洁的中文回复。'
+      })
+
       // 把历史消息注入 session
       if (historyMessages.length > 0) {
         for (const msg of historyMessages) {
@@ -281,7 +287,7 @@ async function route(req, res) {
           abortSignal: abortCtrl.signal,
           onChunk: (chunk) => {
             if (aborted) return
-            if (chunk.type === 'content' && chunk.content) {
+            if (chunk.type === 'RESPONSE' && chunk.content) {
               fullContent += chunk.content
               const delta = JSON.stringify({
                 id: completionId,
@@ -328,7 +334,7 @@ async function route(req, res) {
         confirmation: localManager
       })
 
-      const content = result.content || ''
+      const content = result.fullContent || ''
       const toolCalls = (result.toolCalls || []).map(tc => ({
         id: tc.id || `call_${Date.now()}`,
         type: 'function',
