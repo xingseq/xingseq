@@ -2,6 +2,8 @@
 
 VS Code 扩展，通过 Chat Participant 将星序引擎（XingSeq）接入 VS Code Chat 面板。
 
+> **前置条件**：本扩展使用 VS Code Chat Participant API，需要安装 [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) 扩展才能正常工作。
+
 ## 职责
 
 - 以子进程启动 `workspace-app/src/server.mjs`
