@@ -21,7 +21,8 @@
  */
 
 import { getDeepSeekApiKey } from '@xingseq/config-core'
-import { createToolRegistry } from '@xingseq/tool-registry'
+import { createToolRegistry, subAppTools } from '@xingseq/tool-registry'
+import { createSubAppHost, createSubAppHandlers } from '@xingseq/subapp-host'
 import { runChatTurnWithTools } from './chatLoop.js'
 import { DEMO_TOOLS, createDemoHandlers } from './tools/workspace.js'
 import { WEB_TOOLS, createWebHandlers } from './tools/web.js'
@@ -41,6 +42,8 @@ import os from 'node:os'
  * @param {string} [opts.groupName='workspace']
  * @param {string} [opts.displayName='工作区工具']
  * @param {string[]} [opts.toolDirs] - 外部工具目录列表，默认 ['~/.xingseq/tools']
+ * @param {boolean} [opts.enableSubApps=true] - 是否启用子应用工具组
+ * @param {string} [opts.projectsDir] - 子应用项目目录，默认 '~/Library/Application Support/xingseq/projects'
  */
 export async function createWorkspaceRegistry({
   workspace,
@@ -50,8 +53,10 @@ export async function createWorkspaceRegistry({
   enableFs = true,
   enableShell = true,
   enableEmail = false,
+  enableSubApps = true,
   emailSendFn = null,
-  toolDirs = [path.join(os.homedir(), '.xingseq', 'tools')]
+  toolDirs = [path.join(os.homedir(), '.xingseq', 'tools')],
+  projectsDir = path.join(os.homedir(), 'Library', 'Application Support', 'xingseq', 'projects')
 } = {}) {
   if (!workspace?.filesDir) {
     throw new Error('createWorkspaceRegistry: workspace.filesDir 必填')
@@ -89,6 +94,20 @@ export async function createWorkspaceRegistry({
       tools: EMAIL_TOOLS,
       handlers: createEmailHandlers({ sendFn: emailSendFn || undefined })
     })
+  }
+  if (enableSubApps) {
+    try {
+      const subAppHost = await createSubAppHost({ projectsDir })
+      if (subAppHost.size > 0) {
+        registry.register('subApp', {
+          displayName: '子应用工具',
+          tools: subAppTools,
+          handlers: createSubAppHandlers(subAppHost)
+        })
+      }
+    } catch (err) {
+      console.warn(`[chat-core] 子应用加载失败: ${err.message}`)
+    }
   }
 
   // 自动发现外部工具插件

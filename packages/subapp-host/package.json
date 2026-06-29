@@ -1,6 +1,6 @@
 {
   "name": "@xingseq/subapp-host",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "L2 领域：子应用注册 / 进程 / CLI / UI / 记忆",
@@ -8,13 +8,17 @@
   "license": "MIT",
   "main": "src/index.js",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./handlers": "./src/handlers.js"
   },
   "scripts": {
     "test": "echo \"no tests yet\" && exit 0"
   },
+  "dependencies": {
+    "@xingseq/shared-utils": "*"
+  },
   "xingseq": {
     "stage": 2,
-    "status": "scaffold"
+    "status": "ready"
   }
 }

@@ -30,7 +30,8 @@
     "@xingseq/shared-utils": "*",
     "@xingseq/config-core": "*",
     "@xingseq/llm-core": "*",
-    "@xingseq/tool-registry": "*"
+    "@xingseq/tool-registry": "*",
+    "@xingseq/subapp-host": "*"
   },
   "optionalDependencies": {
     "imap": "^0.8.19",
