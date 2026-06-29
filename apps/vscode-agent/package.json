@@ -1,0 +1,87 @@
+{
+  "name": "xingseq-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "displayName": "星序引擎 Agent",
+  "description": "AI Agent powered by XingSeq engine",
+  "publisher": "xingseq",
+  "author": "xingseq authors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xingseq/xingseq.git",
+    "directory": "apps/vscode-agent"
+  },
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["AI", "Chat", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "xingseq.agent",
+        "name": "xingseq",
+        "description": "星序引擎 AI Agent",
+        "isSticky": true,
+        "commands": [
+          { "name": "fix",     "description": "修复当前文件的错误" },
+          { "name": "explain", "description": "解释选中的代码" },
+          { "name": "test",    "description": "为选中代码生成测试" }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "xingseq.startServer",
+        "title": "XingSeq: Start Agent Server"
+      },
+      {
+        "command": "xingseq.stopServer",
+        "title": "XingSeq: Stop Agent Server"
+      }
+    ],
+    "configuration": {
+      "title": "星序引擎",
+      "properties": {
+        "xingseq.serverPort": {
+          "type": "number",
+          "default": 3002,
+          "description": "xingseq agent server 端口"
+        },
+        "xingseq.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "workspace-app/src/server.mjs 的绝对路径（留空则自动查找）"
+        }
+      }
+    }
+  },
+
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "vsce package --no-dependencies"
+  },
+
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  },
+
+  "xingseq": {
+    "stage": 4,
+    "status": "ready",
+    "features": [
+      "VS Code Chat Participant",
+      "workspace-app server 子进程管理",
+      "SSE 流式对话",
+      "工具调用确认弹窗",
+      "代码 fix/explain/test 快捷命令"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+# 开发时文件
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+tsconfig.json
+esbuild.mjs
+
+# 构建中间产物
+**/*.ts
+**/*.map
+
+# 依赖（esbuild 已 bundle，无需运行时 node_modules）
+node_modules/**
+
+# 打包产物
+*.vsix
