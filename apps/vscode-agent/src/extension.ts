@@ -9,9 +9,13 @@ export async function activate(context: vscode.ExtensionContext) {
   // 2. 创建 agent 客户端（HTTP+SSE 通信）
   const client = new AgentClient(() => serverMgr.getPort())
 
-  // 3. 启动 server
+  // 3. 启动 server（容错：失败不阻塞扩展激活）
   const port = vscode.workspace.getConfiguration('xingseq').get('serverPort', 3002)
-  await serverMgr.start(port)
+  try {
+    await serverMgr.start(port)
+  } catch (e: any) {
+    vscode.window.showWarningMessage(`XingSeq server 启动失败: ${e.message}`)
+  }
 
   // 4. 注册 Chat Participant
   const handler = createChatHandler(client)

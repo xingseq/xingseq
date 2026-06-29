@@ -2,7 +2,6 @@
   "name": "xingseq-agent",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "displayName": "星序引擎 Agent",
   "description": "AI Agent powered by XingSeq engine",
   "publisher": "xingseq",

@@ -25,13 +25,12 @@ export class ServerManager {
       }
     }
 
-    // 查找 monorepo 根
-    if (wsFolders) {
-      for (const folder of wsFolders) {
-        const candidate = path.join(folder.uri.fsPath, 'src', 'server.mjs')
-        if (fs.existsSync(candidate)) return candidate
-      }
-    }
+    // fallback：从扩展自身路径推算 monorepo 根
+    // 扩展位于 apps/vscode-agent/，向上两级就是 monorepo 根
+    const extPath = this.context.extensionPath
+    const monorepoRoot = path.resolve(extPath, '..', '..')
+    const fallback = path.join(monorepoRoot, 'apps', 'workspace-app', 'src', 'server.mjs')
+    if (fs.existsSync(fallback)) return fallback
 
     throw new Error('未找到 workspace-app/src/server.mjs，请在设置中配置 xingseq.serverPath')
   }
