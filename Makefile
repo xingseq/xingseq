@@ -1,5 +1,8 @@
 # 星序引擎 (xingseq) - npm workspaces monorepo
 # 用法：make <target>，无参数时显示帮助
+#
+# 跨平台兼容：所有目标均使用 Node.js 辅助脚本，
+# 不依赖 awk / rm / uname / trap 等 Unix 专属工具。
 
 .DEFAULT_GOAL := help
 
@@ -8,9 +11,7 @@
 # ---------------------------------------------------------------------------
 .PHONY: help
 help: ## 显示帮助
-	@awk 'BEGIN {FS = ":.*##"; printf "可用命令：\n"} \
-		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2 }' \
-		$(MAKEFILE_LIST)
+	@node scripts/make-help.mjs
 
 # ---------------------------------------------------------------------------
 # 依赖
@@ -49,9 +50,7 @@ web-install: ## 安装 Web 前端依赖（首次）
 
 web-dev: ## 一键启动 Web 开发环境（后端 :3001 + 前端 :5173）
 	@echo "启动中... 浏览器打开 http://localhost:5173（Ctrl+C 退出）"
-	@trap 'kill 0' EXIT; \
-	npm run server -w apps/chat-app & \
-	npm run web -w apps/chat-app
+	node scripts/dev-concurrent.mjs apps/chat-app server web
 
 # ---------------------------------------------------------------------------
 # 邮件网关
@@ -98,9 +97,7 @@ ws-web-install: ## 安装 workspace-app 前端依赖（首次）
 
 ws-web-dev: ## 一键启动 workspace-app Web 开发环境（后端 :3002 + 前端 :5174）
 	@echo "启动中... 浏览器打开 http://localhost:5174（Ctrl+C 退出）"
-	@trap 'kill 0' EXIT; \
-	npm run server -w apps/workspace-app & \
-	npm run web -w apps/workspace-app
+	node scripts/dev-concurrent.mjs apps/workspace-app server web
 
 ws-test: ## 运行 workspace-app 烟雾测试
 	npm test -w apps/workspace-app
@@ -133,9 +130,7 @@ llm-web-install: ## 安装 LLM 管理器前端依赖（首次）
 
 llm-web-dev: ## 一键启动 LLM 管理器开发环境（后端 :7820 + 前端 :5178）
 	@echo "启动中... 浏览器打开 http://localhost:5178（Ctrl+C 退出）"
-	@trap 'kill 0' EXIT; \
-	npm run server -w apps/llm-manager & \
-	npm run web -w apps/llm-manager
+	node scripts/dev-concurrent.mjs apps/llm-manager server web
 
 # ---------------------------------------------------------------------------
 # 构建
@@ -178,18 +173,15 @@ ls: ## 列出所有 workspace 包
 .PHONY: clean clean-all
 clean: ## 清理构建产物
 	@echo "清理 web 构建产物..."
-	rm -rf apps/chat-app/web/dist
+	node -e "require('node:fs').rmSync('apps/chat-app/web/dist',{recursive:true,force:true})"
 
 clean-all: clean ## 清理全部（含 node_modules）
 	@echo "清理 node_modules..."
-	rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/chat-app/web/node_modules
+	node -e "const fs=require('node:fs'),path=require('node:path');const dirs=['node_modules','apps/chat-app/web/node_modules'];for(const dir of ['apps','packages']){try{for(const name of fs.readdirSync(dir)){dirs.push(path.join(dir,name,'node_modules'))}}catch{}}dirs.forEach(function(d){fs.rmSync(d,{recursive:true,force:true})});console.log('  done')"
 
 # ---------------------------------------------------------------------------
 # 环境信息
 # ---------------------------------------------------------------------------
 .PHONY: env-info
 env-info: ## 显示开发环境版本
-	@echo "Node:  $$(node -v)"
-	@echo "npm:   $$(npm -v)"
-	@echo "OS:    $$(uname -s) $$(uname -m)"
-	@echo "镜像:  $$(npm config get registry)"
+	@node -e "const os=require('os'),cp=require('child_process');console.log('Node:  '+process.version);console.log('npm:   '+cp.execSync('npm -v').toString().trim());console.log('OS:    '+os.platform()+' '+os.arch());console.log('镜像:  '+cp.execSync('npm config get registry').toString().trim())"
