@@ -168,6 +168,203 @@ async function route(req, res) {
     return res.end()
   }
 
+  // ===== OpenAI 兼容层（供 Continue.dev 等客户端使用） =====
+
+  // GET /v1/models
+  if (method === 'GET' && pathname === '/v1/models') {
+    return sendJSON(res, 200, {
+      object: 'list',
+      data: [
+        {
+          id: 'xingseq',
+          object: 'model',
+          created: Math.floor(Date.now() / 1000),
+          owned_by: 'xingseq'
+        }
+      ]
+    })
+  }
+
+  // POST /v1/chat/completions
+  if (method === 'POST' && pathname === '/v1/chat/completions') {
+    const body = await readBody(req).catch(e => ({ __error: e.message }))
+    if (body.__error) return sendJSON(res, 400, { error: { message: body.__error, type: 'invalid_request_error' } })
+
+    const { messages, stream = false, model = 'xingseq' } = body
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return sendJSON(res, 400, { error: { message: 'messages 不能为空', type: 'invalid_request_error' } })
+    }
+
+    // 提取最后一条 user 消息作为本次输入，前面的消息作为历史
+    const lastUserIdx = messages.map(m => m.role).lastIndexOf('user')
+    if (lastUserIdx === -1) {
+      return sendJSON(res, 400, { error: { message: 'messages 中至少需要一条 user 消息', type: 'invalid_request_error' } })
+    }
+    const historyMessages = messages.slice(0, lastUserIdx)
+    const userMessage = messages[lastUserIdx].content
+
+    // workspace 从 header 或 query 获取，默认用 "continue" 工作区
+    const wsOpts = parseWsOpts(url)
+    wsOpts.workspace = wsOpts.workspace || url.searchParams.get('workspace') || 'continue'
+
+    // 生成唯一 conversationId（每次请求新建，靠 messages 数组维持上下文）
+    const conversationId = `oai-${Date.now()}`
+    const completionId = `chatcmpl-${Date.now()}`
+    const created = Math.floor(Date.now() / 1000)
+
+    let session
+    try {
+      const ws = resolveWorkspace(wsOpts)
+      await ensureWorkspace(ws)
+      const registry = await createWorkspaceRegistry({
+        workspace: ws,
+        enableFs: true,
+        enableShell: true,
+        enableWeb: true,
+        enableEmail: false
+      })
+      session = createProvider({ id: conversationId, workspace: ws, registry })
+
+      // 把历史消息注入 session
+      if (historyMessages.length > 0) {
+        for (const msg of historyMessages) {
+          session.messages.push({
+            role: msg.role,
+            content: msg.content || '',
+            tool_calls: msg.tool_calls,
+            tool_call_id: msg.tool_call_id
+          })
+        }
+      }
+    } catch (err) {
+      return sendJSON(res, 500, { error: { message: err.message, type: 'server_error' } })
+    }
+
+    // 独立确认管理器（自动批准，因为 Continue.dev 无法弹确认框）
+    const localManager = createConfirmationManager({
+      isCLI: true,
+      countdownConfigReader: async () => ({
+        enabled: true,
+        seconds: 2,
+        applyToTools: [
+          'set_file_content', 'replace_file_string', 'copy_file',
+          'move_file', 'execute_command', 'launch_application',
+          'delete_file', 'create_directory'
+        ]
+      }),
+      sendFrontendConfirm: async () => {},
+      sensitiveTools: [
+        'set_file_content', 'replace_file_string', 'copy_file',
+        'move_file', 'execute_command', 'launch_application',
+        'delete_file', 'create_directory'
+      ]
+    })
+
+    if (stream) {
+      // ===== 流式响应 =====
+      setCORS(res)
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      })
+
+      let fullContent = ''
+      let aborted = false
+      const abortCtrl = new AbortController()
+      req.on('close', () => { aborted = true; abortCtrl.abort() })
+
+      try {
+        const result = await session.chat(userMessage, {
+          confirmation: localManager,
+          abortSignal: abortCtrl.signal,
+          onChunk: (chunk) => {
+            if (aborted) return
+            if (chunk.type === 'content' && chunk.content) {
+              fullContent += chunk.content
+              const delta = JSON.stringify({
+                id: completionId,
+                object: 'chat.completion.chunk',
+                created,
+                model,
+                choices: [{
+                  index: 0,
+                  delta: { content: chunk.content },
+                  finish_reason: null
+                }]
+              })
+              res.write(`data: ${delta}\n\n`)
+            }
+          }
+        })
+
+        if (!aborted) {
+          // 发送结束标记
+          const endDelta = JSON.stringify({
+            id: completionId,
+            object: 'chat.completion.chunk',
+            created,
+            model,
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
+          })
+          res.write(`data: ${endDelta}\n\n`)
+          res.write('data: [DONE]\n\n')
+        }
+      } catch (err) {
+        if (!aborted) {
+          const errData = JSON.stringify({ error: { message: err.message, type: 'server_error' } })
+          res.write(`data: ${errData}\n\n`)
+        }
+      } finally {
+        res.end()
+      }
+      return
+    }
+
+    // ===== 非流式响应 =====
+    try {
+      const result = await session.chat(userMessage, {
+        confirmation: localManager
+      })
+
+      const content = result.content || ''
+      const toolCalls = (result.toolCalls || []).map(tc => ({
+        id: tc.id || `call_${Date.now()}`,
+        type: 'function',
+        function: {
+          name: tc.function?.name || tc.name,
+          arguments: typeof tc.function?.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc.function?.arguments || tc.args || {})
+        }
+      }))
+
+      const choice = {
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: toolCalls.length > 0 ? null : content,
+          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+        },
+        finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop'
+      }
+
+      return sendJSON(res, 200, {
+        id: completionId,
+        object: 'chat.completion',
+        created,
+        model,
+        choices: [choice],
+        usage: result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      })
+    } catch (err) {
+      return sendJSON(res, 500, { error: { message: err.message, type: 'server_error' } })
+    }
+  }
+
+  // ===== 原有路由 =====
+
   // health
   if (method === 'GET' && pathname === '/api/health') {
     return sendJSON(res, 200, { ok: true, ts: Date.now() })
