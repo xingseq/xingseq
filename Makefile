@@ -16,10 +16,16 @@ help: ## 显示帮助
 # ---------------------------------------------------------------------------
 # 依赖
 # ---------------------------------------------------------------------------
+# 注意：Windows 11 (build 26200+) 的 "untrusted mount point" 安全策略会阻止
+# npm 为 workspace 包创建的 junction 被遍历，导致 npm install 在 createBinLinks
+# 阶段报 UNKNOWN (-4094) / lstat 错误。
+# 解决方案：使用 --no-bin-links 跳过 bin 链接创建（失败点），再用
+# fix-workspace-links.mjs 将不可遍历的 junction 替换为目录拷贝。
 .PHONY: install
 install: ## 安装全部依赖（含所有 workspace）
 	@echo "安装依赖..."
-	npm install
+	npm install --no-bin-links
+	@node scripts/fix-workspace-links.mjs
 
 # ---------------------------------------------------------------------------
 # 开发
