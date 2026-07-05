@@ -79,7 +79,7 @@ mail-once: ## 单次对话测试（不启动监听）
 # ---------------------------------------------------------------------------
 # 工作区助手 (workspace-app)
 # ---------------------------------------------------------------------------
-.PHONY: ws ws-dry ws-live ws-list ws-server ws-web ws-web-install ws-web-dev ws-test
+.PHONY: ws ws-dry ws-live ws-list ws-server ws-web ws-web-install ws-web-dev ws-test continue-bridge
 ws: ## 启动 workspace-app CLI 交互模式
 	npm start -w apps/workspace-app
 
@@ -107,6 +107,9 @@ ws-web-dev: ## 一键启动 workspace-app Web 开发环境（后端 :3002 + 前�
 
 ws-test: ## 运行 workspace-app 烟雾测试
 	npm test -w apps/workspace-app
+
+continue-bridge: ## 启动 Continue.dev 桥接服务（:3003），当前目录作为工作区
+	@node scripts/continue-bridge.mjs
 
 # ---------------------------------------------------------------------------
 # Electron 桌面壳
