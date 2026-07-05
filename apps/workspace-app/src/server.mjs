@@ -281,27 +281,50 @@ async function route(req, res) {
       const abortCtrl = new AbortController()
       req.on('close', () => { aborted = true; abortCtrl.abort() })
 
+      const sendDelta = (content) => {
+        if (aborted || !content) return
+        fullContent += content
+        const delta = JSON.stringify({
+          id: completionId,
+          object: 'chat.completion.chunk',
+          created,
+          model,
+          choices: [{
+            index: 0,
+            delta: { content },
+            finish_reason: null
+          }]
+        })
+        res.write(`data: ${delta}\n\n`)
+      }
+
       try {
-        const result = await session.chat(userMessage, {
+        await session.chat(userMessage, {
           confirmation: localManager,
           abortSignal: abortCtrl.signal,
           onChunk: (chunk) => {
-            if (aborted) return
             if (chunk.type === 'RESPONSE' && chunk.content) {
-              fullContent += chunk.content
-              const delta = JSON.stringify({
-                id: completionId,
-                object: 'chat.completion.chunk',
-                created,
-                model,
-                choices: [{
-                  index: 0,
-                  delta: { content: chunk.content },
-                  finish_reason: null
-                }]
-              })
-              res.write(`data: ${delta}\n\n`)
+              sendDelta(chunk.content)
             }
+          },
+          onToolCall: (tc) => {
+            const name = tc.function?.name || tc.name || 'unknown'
+            let args = tc.function?.arguments || tc.args || {}
+            if (typeof args !== 'string') args = JSON.stringify(args, null, 2)
+            sendDelta(`\n\n🛠️ 调用工具：\`${name}\`\n参数：\n\`\`\`json\n${args}\n\`\`\`\n`)
+          },
+          onToolResult: (tc, result, error) => {
+            const name = tc.function?.name || tc.name || 'unknown'
+            if (error) {
+              sendDelta(`\n❌ 工具 \`${name}\` 失败：${error.message}\n`)
+            } else {
+              const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+              sendDelta(`\n✅ 工具 \`${name}\` 结果：\n\`\`\`\n${text}\n\`\`\`\n`)
+            }
+          },
+          onToolDenied: (tc) => {
+            const name = tc.function?.name || tc.name || 'unknown'
+            sendDelta(`\n🚫 工具 \`${name}\` 被拒绝\n`)
           }
         })
 
@@ -330,30 +353,45 @@ async function route(req, res) {
 
     // ===== 非流式响应 =====
     try {
+      let toolLog = ''
+      const logTool = (prefix, name, detail) => {
+        toolLog += `\n${prefix} 工具 \`${name}\`${detail ? ': ' + detail : ''}\n`
+      }
+
       const result = await session.chat(userMessage, {
-        confirmation: localManager
+        confirmation: localManager,
+        onToolCall: (tc) => {
+          const name = tc.function?.name || tc.name || 'unknown'
+          let args = tc.function?.arguments || tc.args || {}
+          if (typeof args !== 'string') args = JSON.stringify(args, null, 2)
+          logTool('🛠️ 调用', name, `\n\`\`\`json\n${args}\n\`\`\``)
+        },
+        onToolResult: (tc, res, error) => {
+          const name = tc.function?.name || tc.name || 'unknown'
+          if (error) {
+            logTool('❌ 失败', name, error.message)
+          } else {
+            const text = typeof res === 'string' ? res : JSON.stringify(res, null, 2)
+            logTool('✅ 结果', name, `\n\`\`\`\n${text}\n\`\`\``)
+          }
+        },
+        onToolDenied: (tc) => {
+          const name = tc.function?.name || tc.name || 'unknown'
+          logTool('🚫 拒绝', name, '')
+        }
       })
 
-      const content = result.fullContent || ''
-      const toolCalls = (result.toolCalls || []).map(tc => ({
-        id: tc.id || `call_${Date.now()}`,
-        type: 'function',
-        function: {
-          name: tc.function?.name || tc.name,
-          arguments: typeof tc.function?.arguments === 'string'
-            ? tc.function.arguments
-            : JSON.stringify(tc.function?.arguments || tc.args || {})
-        }
-      }))
+      const content = toolLog
+        ? `${toolLog}\n\n${result.fullContent || ''}`
+        : (result.fullContent || '')
 
       const choice = {
         index: 0,
         message: {
           role: 'assistant',
-          content: toolCalls.length > 0 ? null : content,
-          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+          content
         },
-        finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop'
+        finish_reason: 'stop'
       }
 
       return sendJSON(res, 200, {

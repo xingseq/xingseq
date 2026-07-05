@@ -27,11 +27,14 @@
 
 import http from 'node:http'
 import path from 'node:path'
-import { URL } from 'node:url'
+import { spawn } from 'node:child_process'
+import { URL, fileURLToPath } from 'node:url'
 
 const PORT = parseInt(process.env.PORT || '3003', 10)
 const UPSTREAM = process.env.CONTINUE_BRIDGE_UPSTREAM || 'http://localhost:3002'
 const WORKSPACE_PATH = process.env.WORKSPACE_APP_PATH || process.cwd()
+const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), '..', '..')
+const AUTO_START_WS_SERVER = ['localhost', '127.0.0.1'].includes(new URL(UPSTREAM).hostname)
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -87,6 +90,64 @@ function forward(req, res, pathname) {
   req.pipe(proxyReq)
 }
 
+function checkUpstreamHealth() {
+  return new Promise((resolve) => {
+    const url = new URL('/api/health', UPSTREAM)
+    const req = http.get(url, (res) => {
+      resolve(res.statusCode >= 200 && res.statusCode < 300)
+    })
+    req.on('error', () => resolve(false))
+    req.setTimeout(1000, () => {
+      req.destroy()
+      resolve(false)
+    })
+  })
+}
+
+function waitForUpstream(timeoutMs = 30000) {
+  const interval = 500
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs
+    const tick = async () => {
+      if (await checkUpstreamHealth()) return resolve()
+      if (Date.now() >= deadline) return reject(new Error('等待 ws-server 启动超时'))
+      setTimeout(tick, interval)
+    }
+    tick()
+  })
+}
+
+function startWsServer() {
+  return new Promise((resolve, reject) => {
+    log('upstream 未就绪，正在启动 ws-server...')
+    const proc = spawn('npm', ['run', 'server', '-w', 'apps/workspace-app'], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit'
+    })
+    let settled = false
+    const cleanup = () => { if (!settled) { settled = true; proc.kill() } }
+
+    proc.on('error', (err) => {
+      if (!settled) { settled = true; reject(err) }
+    })
+    proc.on('exit', (code) => {
+      if (!settled) {
+        settled = true
+        reject(new Error(`ws-server 退出，code=${code}`))
+      }
+    })
+
+    waitForUpstream(30000)
+      .then(() => {
+        if (!settled) { settled = true; resolve() }
+      })
+      .catch((err) => {
+        cleanup()
+        reject(err)
+      })
+  })
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS_HEADERS)
@@ -106,11 +167,37 @@ const server = http.createServer((req, res) => {
   sendJSON(res, 404, { error: 'Not Found', path: pathname })
 })
 
-server.listen(PORT, () => {
-  log(`listening on http://localhost:${PORT}`)
-  log(`upstream: ${UPSTREAM}`)
-  log(`workspace: ${WORKSPACE_PATH}`)
-  if (!path.isAbsolute(WORKSPACE_PATH)) {
-    error('警告：workspace 路径不是绝对路径，workspace-app 会拒绝挂载。')
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    error(`端口 ${PORT} 已被占用，请先停止之前的 continue-bridge：`)
+    error(`  lsof -ti:${PORT} | xargs kill`)
+  } else {
+    error('server error:', err.message)
   }
+  process.exit(1)
+})
+
+async function main() {
+  if (AUTO_START_WS_SERVER) {
+    const healthy = await checkUpstreamHealth()
+    if (healthy) {
+      log('upstream 已就绪')
+    } else {
+      await startWsServer()
+    }
+  }
+
+  server.listen(PORT, () => {
+    log(`listening on http://localhost:${PORT}`)
+    log(`upstream: ${UPSTREAM}`)
+    log(`workspace: ${WORKSPACE_PATH}`)
+    if (!path.isAbsolute(WORKSPACE_PATH)) {
+      error('警告：workspace 路径不是绝对路径，workspace-app 会拒绝挂载。')
+    }
+  })
+}
+
+main().catch((err) => {
+  error('启动失败:', err.message)
+  process.exit(1)
 })
