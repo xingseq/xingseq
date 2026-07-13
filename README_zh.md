@@ -56,6 +56,7 @@ make chat
 | `make web-dev` | HTTP+SSE 后端 (:3001) + Vite React 前端 (:5173) |
 | `make ws` | 工作区助手 CLI（文件/Shell 工具锁定到指定目录） |
 | `make mail-dry` | 邮件网关离线模式 |
+| `make electron-build` | 构建控制台 + 各子应用前端，启动 Electron 综合控制台 |
 | `make test` | 烟雾测试 |
 
 执行 `make` 查看完整命令列表。
@@ -67,9 +68,11 @@ make chat
 ```mermaid
 graph TB
     subgraph L4[应用层]
+        electron-shell
         chat-app
         workspace-app
         mail-app
+        llm-manager
     end
     subgraph L3[引擎层]
         chat-core
@@ -107,7 +110,7 @@ graph TB
 | **L1 基座** | `shared-utils` · `config-core` · `storage-core` · `llm-core` | 日志、配置、加密存储、多模型 LLM 客户端 |
 | **L2 领域** | `tool-registry` · `memory-store` · `skill-host` · `subapp-host` | 工具派发、对话持久化、插件管理 |
 | **L3 引擎** | `chat-core` · `agent` · `flow-engine` · `agent-runtime` | ReAct 循环、工作区会话、安全防护 |
-| **L4 应用** | `chat-app` · `workspace-app` · `mail-app` · `llm-manager` · ... | 基于框架构建的终端用户应用 |
+| **L4 应用** | `electron-shell` · `chat-app` · `workspace-app` · `mail-app` · `llm-manager` · ... | 基于框架构建的终端用户应用 |
 
 ---
 
@@ -159,7 +162,7 @@ graph TB
 | L1 基座 | 稳定 — 4 个包全部迁移并测试通过 |
 | L2 领域 | 稳定 — tool-registry 和 memory-store 已投入使用 |
 | L3 引擎 | chat-core 稳定；agent / flow-engine / agent-runtime 已搭建脚手架 |
-| L4 应用 | chat-app、workspace-app、mail-app 完整可用；其余开发中 |
+| L4 应用 | electron-shell 控制台（多子应用宿主）、chat-app、workspace-app、mail-app 完整可用；llm-manager 可用；其余开发中 |
 
 > 活跃开发中。1.0 之前的小版本可能存在 API 变更。
 

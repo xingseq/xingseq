@@ -56,6 +56,7 @@ make chat
 | `make web-dev` | HTTP+SSE backend (:3001) + Vite React frontend (:5173) |
 | `make ws` | Workspace-app CLI (file/shell tools scoped to a directory) |
 | `make mail-dry` | Mail gateway in offline mode |
+| `make electron-build` | Build console + all sub-app frontends, then launch Electron console |
 | `make test` | Smoke test |
 
 Run `make` to see the full list.
@@ -67,9 +68,11 @@ Run `make` to see the full list.
 ```mermaid
 graph TB
     subgraph L4[Applications]
+        electron-shell
         chat-app
         workspace-app
         mail-app
+        llm-manager
     end
     subgraph L3[Core Engine]
         chat-core
@@ -107,7 +110,7 @@ graph TB
 | **L1 Foundations** | `shared-utils` · `config-core` · `storage-core` · `llm-core` | Logger, config, encrypted storage, multi-provider LLM client |
 | **L2 Domain** | `tool-registry` · `memory-store` · `skill-host` · `subapp-host` | Tool dispatch, conversation persistence, plugin management |
 | **L3 Engine** | `chat-core` · `agent` · `flow-engine` · `agent-runtime` | ReAct loop, workspace session, safety guards |
-| **L4 Apps** | `chat-app` · `workspace-app` · `mail-app` · `llm-manager` · ... | End-user applications built on the stack |
+| **L4 Apps** | `electron-shell` · `chat-app` · `workspace-app` · `mail-app` · `llm-manager` · ... | End-user applications built on the stack |
 
 ---
 
@@ -159,7 +162,7 @@ The result: 12 packages with enforced single-direction dependencies, running the
 | L1 Foundations | Stable — all 4 packages migrated and tested |
 | L2 Domain | Stable — tool-registry and memory-store in production use |
 | L3 Engine | chat-core stable; agent / flow-engine / agent-runtime scaffolded |
-| L4 Apps | chat-app, workspace-app, mail-app fully functional; others in dev |
+| L4 Apps | electron-shell console (multi-app host), chat-app, workspace-app, mail-app fully functional; llm-manager functional; others in dev |
 
 > This is an active project. APIs may change between minor versions until 1.0.
 
