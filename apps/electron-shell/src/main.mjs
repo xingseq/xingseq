@@ -147,7 +147,14 @@ async function startSubApp(name) {
 
   const proc = spawn(process.execPath, [serverPath], {
     cwd: entry.rootPath,
-    env: { ...process.env, [portEnv]: String(port), NODE_ENV: process.env.NODE_ENV || 'production' },
+    env: {
+      ...process.env,
+      [portEnv]: String(port),
+      NODE_ENV: process.env.NODE_ENV || 'production',
+      // Electron 可执行文件以纯 Node.js 模式运行子应用 server，
+      // 避免每个子进程在 macOS Dock 上产生额外图标
+      ELECTRON_RUN_AS_NODE: '1'
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   })
   proc.stdout.on('data', d => process.stdout.write(`[${name}] ${d}`))
