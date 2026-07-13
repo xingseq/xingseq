@@ -1,0 +1,19 @@
+{
+  "name": "mail-app",
+  "displayName": "邮件",
+  "description": "邮件网关（IMAP 轮询 + SMTP 回复）+ 邮件 CLI，AI 自动回复",
+  "version": "0.1.0",
+  "ui": {
+    "enabled": false
+  },
+  "cli": {
+    "enabled": true,
+    "bin": "src/cli.mjs",
+    "style": "subcommand",
+    "commands": {
+      "gateway": { "description": "启动邮件网关常驻监听", "args": [] },
+      "send": { "description": "发送邮件", "args": [] },
+      "once": { "description": "单次处理一封邮件", "args": [] }
+    }
+  }
+}

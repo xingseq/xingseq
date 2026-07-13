@@ -112,15 +112,21 @@ continue-bridge: ## 启动 Continue.dev 桥接服务（:3003），当前目录�
 	@node scripts/continue-bridge.mjs
 
 # ---------------------------------------------------------------------------
-# Electron 桌面壳
+# Electron 综合控制台
 # ---------------------------------------------------------------------------
-.PHONY: electron electron-build
+.PHONY: electron electron-build electron-web-install
 
-electron: ## 启动 Electron 桌面壳（需先构建 workspace-app 前端）
+electron: ## 启动 Electron 综合控制台（需先构建控制台与各子应用前端）
 	npm start -w apps/electron-shell
 
-electron-build: ## 构建 workspace-app 前端并启动 Electron 桌面壳
+electron-web-install: ## 安装控制台前端依赖（首次）
+	npm run web:install -w apps/electron-shell
+
+electron-build: ## 构建控制台 + 各子应用前端并启动综合控制台
+	npm run web:build -w apps/electron-shell
 	npm run web:build -w apps/workspace-app
+	npm run web:build -w apps/chat-app
+	npm run web:build -w apps/llm-manager
 	npm start -w apps/electron-shell
 
 # ---------------------------------------------------------------------------
@@ -144,8 +150,8 @@ llm-web-dev: ## 一键启动 LLM 管理器开发环境（后端 :7820 + 前端 :
 # ---------------------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------------------
-.PHONY: build web-build ws-web-build llm-web-build
-build: web-build ws-web-build llm-web-build ## 构建所有产物
+.PHONY: build web-build ws-web-build llm-web-build electron-web-build
+build: web-build ws-web-build llm-web-build electron-web-build ## 构建所有产物
 
 web-build: ## 构建 chat-app Web 前端
 	npm run web:build -w apps/chat-app
@@ -155,6 +161,9 @@ ws-web-build: ## 构建 workspace-app Web 前端
 
 llm-web-build: ## 构建 llm-manager Web 前端
 	npm run web:build -w apps/llm-manager
+
+electron-web-build: ## 构建控制台（electron-shell）Web 前端
+	npm run web:build -w apps/electron-shell
 
 # ---------------------------------------------------------------------------
 # 代码质量

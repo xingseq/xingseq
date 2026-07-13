@@ -1,0 +1,20 @@
+{
+  "name": "llm-manager",
+  "displayName": "LLM 管理",
+  "description": "全局模型配置 / API Key / 默认模型 / 连通性测试",
+  "version": "0.1.0",
+  "ui": {
+    "enabled": true,
+    "port": 7820,
+    "portEnv": "LLM_MANAGER_PORT",
+    "server": "src/server.mjs",
+    "healthPath": "/api/models",
+    "routes": ["/"]
+  },
+  "cli": {
+    "enabled": true,
+    "bin": "src/cli.mjs",
+    "style": "direct",
+    "commands": {}
+  }
+}

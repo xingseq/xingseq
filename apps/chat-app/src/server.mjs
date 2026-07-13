@@ -30,6 +30,7 @@ import http from 'node:http'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
+import { promises as fsp } from 'node:fs'
 import { URL } from 'node:url'
 
 // ===== 1. 注入 shared env（必须在 import 业务模块前） =====
@@ -346,6 +347,32 @@ async function route(req, res) {
     const ok = mgr.resolvePendingConfirm(confirmId, confirmed)
     confirmManagers.delete(confirmId)
     return sendJSON(res, 200, { ok, confirmId, confirmed })
+  }
+
+  // ===== 静态文件（Web 前端 dist），供 iframe/直接访问同源加载 =====
+  // 非 /api 的 GET 请求走这里，找不到则 SPA fallback 到 index.html。
+  if (method === 'GET' && !pathname.startsWith('/api/')) {
+    const distDir = path.resolve(import.meta.dirname, '..', 'web', 'dist')
+    let filePath = path.join(distDir, pathname === '/' ? 'index.html' : decodeURIComponent(pathname))
+    const mimeMap = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
+    try {
+      const stat = await fsp.stat(filePath)
+      if (stat.isDirectory()) filePath = path.join(filePath, 'index.html')
+      const content = await fsp.readFile(filePath)
+      const ext = path.extname(filePath)
+      setCORS(res)
+      res.writeHead(200, { 'Content-Type': mimeMap[ext] || 'application/octet-stream' })
+      return res.end(content)
+    } catch {
+      // SPA fallback
+      try {
+        const html = await fsp.readFile(path.join(distDir, 'index.html'))
+        res.writeHead(200, { 'Content-Type': 'text/html' })
+        return res.end(html)
+      } catch {
+        return sendJSON(res, 404, { error: 'Web 前端未构建，请先执行 npm run web:build -w apps/chat-app' })
+      }
+    }
   }
 
   // 404

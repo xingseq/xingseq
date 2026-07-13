@@ -1,0 +1,20 @@
+{
+  "name": "@xingseq/electron-shell-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "electron-shell 控制台前端：子应用导航 + iframe 宿主 + 子应用管理",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 5180"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.10"
+  }
+}

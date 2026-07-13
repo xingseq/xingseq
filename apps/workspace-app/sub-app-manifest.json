@@ -1,0 +1,20 @@
+{
+  "name": "workspace-app",
+  "displayName": "工作区",
+  "description": "挂载本地目录 + 文件树 + 对话 + Shell（四层安全确认）",
+  "version": "0.1.0",
+  "ui": {
+    "enabled": true,
+    "port": 3002,
+    "portEnv": "PORT",
+    "server": "src/server.mjs",
+    "healthPath": "/api/health",
+    "routes": ["/"]
+  },
+  "cli": {
+    "enabled": true,
+    "bin": "src/cli.mjs",
+    "style": "direct",
+    "commands": {}
+  }
+}

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "L4 应用：Electron 桌面壳，承载 workspace-app",
+  "description": "L4 应用：XingSeq 综合控制台（子应用导航 + iframe 宿主 + 子应用管理）",
   "author": "xingseq authors",
   "license": "MIT",
   "main": "src/main.mjs",
@@ -13,16 +13,26 @@
   "scripts": {
     "start": "electron src/main.mjs",
     "dev": "NODE_ENV=development electron src/main.mjs",
+    "web": "npm run dev --prefix web",
+    "web:install": "npm install --prefix web",
+    "web:build": "npm run build --prefix web",
     "test": "echo \"no tests yet\" && exit 0"
   },
   "devDependencies": {
     "electron": "^31.7.6"
   },
   "dependencies": {
-    "@xingseq/workspace-app": "*"
+    "@xingseq/subapp-host": "*"
   },
   "xingseq": {
     "stage": 4,
-    "status": "dev"
+    "status": "dev",
+    "features": [
+      "multi-app console",
+      "subapp discovery (subapp-host)",
+      "on-demand server launch",
+      "iframe app host",
+      "subapp management panel"
+    ]
   }
 }

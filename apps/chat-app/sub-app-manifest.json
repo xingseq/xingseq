@@ -1,0 +1,20 @@
+{
+  "name": "chat-app",
+  "displayName": "对话",
+  "description": "交互式多轮对话 + 工具调用 + Web 搜索",
+  "version": "0.2.0",
+  "ui": {
+    "enabled": true,
+    "port": 3001,
+    "portEnv": "PORT",
+    "server": "src/server.mjs",
+    "healthPath": "/api/health",
+    "routes": ["/"]
+  },
+  "cli": {
+    "enabled": true,
+    "bin": "src/cli.mjs",
+    "style": "direct",
+    "commands": {}
+  }
+}
