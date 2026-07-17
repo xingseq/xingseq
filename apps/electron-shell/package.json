@@ -22,7 +22,8 @@
     "electron": "^31.7.6"
   },
   "dependencies": {
-    "@xingseq/subapp-host": "*"
+    "@xingseq/subapp-host": "*",
+    "@xingseq/skill-host": "*"
   },
   "xingseq": {
     "stage": 4,
@@ -32,7 +33,8 @@
       "subapp discovery (subapp-host)",
       "on-demand server launch",
       "iframe app host",
-      "subapp management panel"
+      "subapp management panel",
+      "app store (skill-host)"
     ]
   }
 }

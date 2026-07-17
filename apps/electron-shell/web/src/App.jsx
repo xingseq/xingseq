@@ -1,20 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import SubAppManager from './components/SubAppManager.jsx'
+import AppStore from './components/AppStore.jsx'
 
 /**
  * XingSeq 控制台前端
  *
- * 布局：左侧导航（子应用列表 + 子应用管理入口）+ 右侧内容区。
+ * 布局：左侧导航（子应用列表 + 子应用管理 + 应用商店）+ 右侧内容区。
  *   - 选中某个子应用 → 先经网关按需拉起其 server，再用 <iframe> 嵌入其端口。
  *   - 选中「子应用管理」→ 渲染 SubAppManager 面板。
+ *   - 选中「应用商店」→ 渲染 AppStore 面板。
  *
  * 数据来源：控制台网关（electron-shell 主进程内的 http 服务）
  *   - GET  /console/api/apps            子应用清单 + 运行状态
  *   - POST /console/api/apps/:name/start 按需启动
  *   - POST /console/api/apps/:name/stop  停止
+ *   - 应用商店相关端点见 AppStore.jsx
  */
 
 const MANAGER_VIEW = '__manager__'
+const STORE_VIEW = '__store__'
 
 // 子应用图标（按 name 匹配，缺省用首字母）
 const APP_ICONS = {
@@ -75,6 +79,12 @@ export default function App() {
     setError(null)
   }
 
+  const openStore = () => {
+    setActive(STORE_VIEW)
+    setIframeSrc('')
+    setError(null)
+  }
+
   const uiApps = apps.filter(a => a.ui && a.ui.enabled !== false && a.ui.port)
 
   return (
@@ -114,6 +124,13 @@ export default function App() {
             <span className="nav-icon">🧩</span>
             <span className="nav-label">子应用管理</span>
           </li>
+          <li
+            className={`nav-item ${active === STORE_VIEW ? 'active' : ''}`}
+            onClick={openStore}
+          >
+            <span className="nav-icon">🛒</span>
+            <span className="nav-label">应用商店</span>
+          </li>
         </ul>
       </aside>
 
@@ -129,7 +146,11 @@ export default function App() {
           />
         )}
 
-        {active && active !== MANAGER_VIEW && (
+        {active === STORE_VIEW && (
+          <AppStore onInstalled={refreshApps} />
+        )}
+
+        {active && active !== MANAGER_VIEW && active !== STORE_VIEW && (
           <div className="iframe-host">
             {starting && <div className="iframe-loading">正在启动子应用…</div>}
             {iframeSrc && (
