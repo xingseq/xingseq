@@ -368,7 +368,7 @@ export default function App() {
               className="mount-input"
               value={mountPath}
               onChange={e => setMountPath(e.target.value)}
-              placeholder="/Users/ws/Dev/your-project"
+              placeholder="/path/to/your/project"
               onKeyDown={e => { if (e.key === 'Enter') handleMount() }}
               autoFocus
             />
