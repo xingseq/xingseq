@@ -117,6 +117,7 @@ continue-bridge: ## 启动 Continue.dev 桥接服务（:3003），当前目录�
 .PHONY: electron electron-build electron-web-install
 
 electron: ## 启动 Electron 综合控制台（需先构建控制台与各子应用前端）
+	@node scripts/ensure-electron-signing.mjs
 	npm start -w apps/electron-shell
 
 electron-web-install: ## 安装控制台前端依赖（首次）
