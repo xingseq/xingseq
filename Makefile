@@ -116,9 +116,9 @@ continue-bridge: ## 启动 Continue.dev 桥接服务（:3003），当前目录�
 # ---------------------------------------------------------------------------
 .PHONY: electron electron-build electron-web-install
 
-electron: ## 启动 Electron 综合控制台（需先构建控制台与各子应用前端）
+electron: ## 启动 Electron 综合控制台（macOS 经 LaunchServices 启动以使 TCC 授权生效）
 	@node scripts/ensure-electron-signing.mjs
-	npm start -w apps/electron-shell
+	@node scripts/launch-electron.mjs
 
 electron-web-install: ## 安装控制台前端依赖（首次）
 	npm run web:install -w apps/electron-shell
@@ -128,7 +128,8 @@ electron-build: ## 构建控制台 + 各子应用前端并启动综合控制台
 	npm run web:build -w apps/workspace-app
 	npm run web:build -w apps/chat-app
 	npm run web:build -w apps/llm-manager
-	npm start -w apps/electron-shell
+	@node scripts/ensure-electron-signing.mjs
+	@node scripts/launch-electron.mjs
 
 # ---------------------------------------------------------------------------
 # LLM 管理器

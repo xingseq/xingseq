@@ -175,8 +175,13 @@ async function startOneServer(entry, section, name) {
   }
 
   const portEnv = conf.portEnv || 'PORT'
+  // 经 LaunchServices（open/双击）启动时 PATH 不含 homebrew 路径，
+  // 子应用会找不到 rsync 等工具或退化到系统 openrsync，这里统一补齐
+  const basePath = process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin'
+  const mergedPath = [...new Set([...basePath.split(':'), '/opt/homebrew/bin', '/usr/local/bin'])].join(':')
   const childEnv = {
     ...process.env,
+    PATH: mergedPath,
     [portEnv]: String(port),
     NODE_ENV: process.env.NODE_ENV || 'production',
     // Electron 可执行文件以纯 Node.js 模式运行子应用 server，
