@@ -10,11 +10,12 @@
   "exports": {
     ".": "./src/index.js",
     "./registry": "./src/registry.js",
+    "./sources": "./src/sources.js",
     "./installer": "./src/installer.js",
     "./status": "./src/status.js"
   },
   "scripts": {
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "node test/sources.smoke.mjs"
   },
   "dependencies": {
     "@xingseq/shared-utils": "*"

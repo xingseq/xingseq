@@ -19,7 +19,14 @@
 import path from 'node:path'
 import os from 'node:os'
 import { getLogger } from '@xingseq/shared-utils/logger'
-import { fetchRemoteRegistry, fetchRemoteManifest } from './registry.js'
+import { fetchAllRegistries, fetchRemoteManifest } from './registry.js'
+import {
+  listSources as listSourcesImpl,
+  addSource as addSourceImpl,
+  removeSource as removeSourceImpl,
+  setSourceEnabled as setSourceEnabledImpl,
+  getOfficialSource
+} from './sources.js'
 import { install, uninstall, update } from './installer.js'
 import { listInstalled, listAvailable, checkUpdates, STATUS } from './status.js'
 
@@ -37,7 +44,7 @@ const DEFAULT_PROJECTS_DIR = path.join(
  *
  * @param {object} [opts]
  * @param {string} [opts.projectsDir]   本地项目目录
- * @param {string} [opts.registryUrl]   注册中心 URL（覆盖默认）
+ * @param {string} [opts.registryUrl]   注册中心 URL（传入时视为覆盖官方源 URL 的单源模式）
  * @returns {SkillHost}
  *
  * @typedef {object} SkillHost
@@ -47,28 +54,42 @@ const DEFAULT_PROJECTS_DIR = path.join(
  * @property {function} install         安装子应用
  * @property {function} uninstall       卸载子应用
  * @property {function} update          更新子应用
- * @property {function} fetchRegistry   拉取远程注册中心
+ * @property {function} fetchRegistry   拉取合并后的多源注册表
+ * @property {function} listSources     列出商店源
+ * @property {function} addSource       添加第三方商店源
+ * @property {function} removeSource    删除第三方商店源
+ * @property {function} setSourceEnabled 启用/禁用商店源
  * @property {string}   projectsDir     本地项目目录路径
  */
 export function createSkillHost({
   projectsDir = DEFAULT_PROJECTS_DIR,
   registryUrl
 } = {}) {
-  const registryOpts = registryUrl ? { registryUrl } : {}
-
   logger.info(`SkillHost 初始化 (projectsDir: ${projectsDir})`)
 
-  // 缓存远程注册中心数据（减少重复请求）
+  // 缓存合并后的多源注册表数据（减少重复请求）
   let _registryCache = null
   let _registryCacheTime = 0
   const CACHE_TTL = 5 * 60 * 1000  // 5 分钟缓存
+
+  function invalidateRegistryCache() {
+    _registryCache = null
+    _registryCacheTime = 0
+  }
+
+  async function getSources() {
+    // registryUrl 传入时视为单源模式：仅用覆盖 URL 的官方源（向后兼容）
+    if (registryUrl) return [getOfficialSource(registryUrl)]
+    return listSourcesImpl(projectsDir)
+  }
 
   async function getRegistry(forceRefresh = false) {
     const now = Date.now()
     if (!forceRefresh && _registryCache && (now - _registryCacheTime) < CACHE_TTL) {
       return _registryCache
     }
-    _registryCache = await fetchRemoteRegistry(registryOpts)
+    const sources = await getSources()
+    _registryCache = await fetchAllRegistries(sources)
     _registryCacheTime = now
     return _registryCache
   }
@@ -77,9 +98,37 @@ export function createSkillHost({
     /** 本地项目目录路径 */
     projectsDir,
 
-    /** 拉取远程注册中心（带缓存） */
+    /** 拉取合并后的多源注册表（带缓存） */
     async fetchRegistry(forceRefresh = false) {
       return getRegistry(forceRefresh)
+    },
+
+    // ── 商店源管理 ────────────────────────────────────────
+
+    /** 列出商店源（官方源恒在首位） */
+    async listSources() {
+      return getSources()
+    },
+
+    /** 添加第三方商店源（校验 URL + 试拉验证） */
+    async addSource({ name, url } = {}) {
+      const entry = await addSourceImpl(projectsDir, { name, url })
+      invalidateRegistryCache()
+      return entry
+    },
+
+    /** 删除第三方商店源（官方源不可删） */
+    async removeSource(id) {
+      const removed = await removeSourceImpl(projectsDir, id)
+      invalidateRegistryCache()
+      return removed
+    },
+
+    /** 启用/禁用第三方商店源（官方源不可禁用） */
+    async setSourceEnabled(id, enabled) {
+      const entry = await setSourceEnabledImpl(projectsDir, id, enabled)
+      invalidateRegistryCache()
+      return entry
     },
 
     /** 列出本地已安装的子应用 */
@@ -87,14 +136,14 @@ export function createSkillHost({
       return listInstalled(projectsDir)
     },
 
-    /** 列出所有可用子应用（合并远程与本地状态） */
+    /** 列出所有可用子应用（合并远程与本地状态，含 sourceErrors） */
     async listAvailable() {
-      return listAvailable({ projectsDir, registryOpts })
+      return listAvailable({ projectsDir, getRegistry })
     },
 
     /** 检查哪些已安装的子应用有更新 */
     async checkUpdates() {
-      return checkUpdates({ projectsDir, registryOpts })
+      return checkUpdates({ projectsDir, getRegistry })
     },
 
     /**
@@ -149,7 +198,11 @@ export function createSkillHost({
 }
 
 // ── 导出子模块 ────────────────────────────────────────────────────────────────
-export { fetchRemoteRegistry, fetchRemoteManifest } from './registry.js'
+export { fetchRemoteRegistry, fetchAllRegistries, fetchRemoteManifest, DEFAULT_REGISTRY_URL } from './registry.js'
+export {
+  listSources, addSource, removeSource, setSourceEnabled,
+  getOfficialSource, OFFICIAL_SOURCE_ID, sourcesFilePath
+} from './sources.js'
 export { install, uninstall, update } from './installer.js'
 export { listInstalled, listAvailable, checkUpdates, STATUS } from './status.js'
 /**

@@ -361,6 +361,20 @@ function sendJSON(res, status, data) {
   res.end(JSON.stringify(data))
 }
 
+/** 读取并解析 JSON 请求体（空体返回 {}） */
+function readJSONBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.on('data', chunk => { body += chunk })
+    req.on('end', () => {
+      if (!body) return resolve({})
+      try { resolve(JSON.parse(body)) }
+      catch { reject(new Error('无效的 JSON 请求体')) }
+    })
+    req.on('error', reject)
+  })
+}
+
 // ── SSE 辅助（与 workspace-app 写法一致）───────────────────────────────────
 function sseInit(res) {
   res.writeHead(200, {
@@ -434,7 +448,7 @@ async function handleGateway(req, res) {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     })
     return res.end()
@@ -459,15 +473,64 @@ async function handleGateway(req, res) {
   }
 
   // ── 应用商店（skill-host）─────────────────────────────────────
-  // GET /console/api/store/apps — 远程+本地合并可用列表
+  // GET /console/api/store/apps — 多源合并+本地可用列表（含 sourceErrors）
   if (method === 'GET' && pathname === '/console/api/store/apps') {
     try {
       const host = await getSkillHost()
-      const apps = await host.listAvailable()
-      return sendJSON(res, 200, { apps })
+      const { apps, sourceErrors } = await host.listAvailable()
+      return sendJSON(res, 200, { apps, sourceErrors })
     } catch (err) {
       // 远程拉取失败不算服务错误，返回空列表 + 错误提示
-      return sendJSON(res, 200, { apps: [], error: err.message })
+      return sendJSON(res, 200, { apps: [], sourceErrors: [], error: err.message })
+    }
+  }
+
+  // ── 商店源管理 ───────────────────────────────────────────────
+  // GET /console/api/store/sources — 源列表（官方源恒在首位）
+  if (method === 'GET' && pathname === '/console/api/store/sources') {
+    try {
+      const host = await getSkillHost()
+      const sources = await host.listSources()
+      return sendJSON(res, 200, { sources })
+    } catch (err) {
+      return sendJSON(res, 500, { sources: [], error: err.message })
+    }
+  }
+
+  // POST /console/api/store/sources — 添加源 { name, url }（skill-host 内做格式/可达性验证）
+  if (method === 'POST' && pathname === '/console/api/store/sources') {
+    try {
+      const body = await readJSONBody(req)
+      const host = await getSkillHost()
+      const source = await host.addSource({ name: body.name, url: body.url })
+      return sendJSON(res, 200, { success: true, source })
+    } catch (err) {
+      return sendJSON(res, 400, { success: false, error: err.message })
+    }
+  }
+
+  // DELETE /console/api/store/sources/:id — 删除源（official 返回 400）
+  const dsm = pathname.match(/^\/console\/api\/store\/sources\/([^/]+)$/)
+  if (method === 'DELETE' && dsm) {
+    try {
+      const host = await getSkillHost()
+      await host.removeSource(decodeURIComponent(dsm[1]))
+      return sendJSON(res, 200, { success: true })
+    } catch (err) {
+      return sendJSON(res, 400, { success: false, error: err.message })
+    }
+  }
+
+  // POST /console/api/store/sources/:id/toggle — 启用/禁用（official 返回 400）
+  const tsm = pathname.match(/^\/console\/api\/store\/sources\/([^/]+)\/toggle$/)
+  if (method === 'POST' && tsm) {
+    try {
+      const body = await readJSONBody(req)
+      const host = await getSkillHost()
+      const source = await host.setSourceEnabled(decodeURIComponent(tsm[1]), !!body.enabled)
+      return sendJSON(res, 200, { success: true, source })
+    } catch (err) {
+      return sendJSON(res, 400, { success: false, error: err.message })
     }
   }
 

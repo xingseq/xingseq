@@ -3,13 +3,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 /**
  * 应用商店面板
  *
- * 浏览远程注册中心（xingseq-agent-hub）的可用子应用，支持：
- *   - 安装：GET /console/api/store/install/:name（SSE 实时进度）
+ * 浏览多商店源（官方 + 用户自定义第三方）的可用子应用，支持：
+ *   - 安装：GET /console/api/store/install/:name（SSE 实时进度；第三方源先弹信任警示）
  *   - 更新：GET /console/api/store/update/:name（SSE 实时进度）
  *   - 卸载：POST /console/api/store/uninstall/:name
+ *   - 源管理：GET/POST/DELETE /console/api/store/sources（官方源锁定不可删/禁）
  *
  * 数据来源：
- *   - GET /console/api/store/apps     远程+本地合并可用列表
+ *   - GET /console/api/store/apps     多源合并+本地可用列表（含 sourceErrors）
  *   - GET /console/api/store/updates  可更新列表
  *
  * @param {object}   props
@@ -71,7 +72,22 @@ export default function AppStore({ onInstalled }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(null)        // 正在安装/更新/卸载的 app name
   const [logs, setLogs] = useState({})          // name → [{ step, message }]
+  const [sources, setSources] = useState([])            // 商店源列表
+  const [showSources, setShowSources] = useState(false) // 源管理面板开关
+  const [sourceErrors, setSourceErrors] = useState([])  // 不可达源列表
+  const [hideSourceErrors, setHideSourceErrors] = useState(false)
+  const [srcForm, setSrcForm] = useState({ name: '', url: '' })
+  const [srcError, setSrcError] = useState(null)
+  const [srcBusy, setSrcBusy] = useState(false)
   const abortRef = useRef(null)
+
+  const loadSources = useCallback(async () => {
+    try {
+      const res = await fetch('/console/api/store/sources')
+      const data = await res.json()
+      setSources(data.sources || [])
+    } catch { /* 忽略 */ }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -79,6 +95,8 @@ export default function AppStore({ onInstalled }) {
       const res = await fetch('/console/api/store/apps')
       const data = await res.json()
       setApps(data.apps || [])
+      setSourceErrors(data.sourceErrors || [])
+      setHideSourceErrors(false)
       if (data.error) setError(`加载应用商店失败：${data.error}`)
 
       // 顺带拉取可更新列表（失败静默）
@@ -98,11 +116,78 @@ export default function AppStore({ onInstalled }) {
 
   useEffect(() => {
     load()
+    loadSources()
     return () => { abortRef.current?.abort() }
-  }, [load])
+  }, [load, loadSources])
+
+  // ── 商店源管理 ───────────────────────────────────────
+
+  const addSource = useCallback(async (e) => {
+    e.preventDefault()
+    setSrcBusy(true); setSrcError(null)
+    try {
+      const res = await fetch('/console/api/store/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(srcForm)
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || '添加失败')
+      setSrcForm({ name: '', url: '' })
+      await loadSources()
+      await load()
+    } catch (e2) {
+      setSrcError(e2.message)
+    } finally {
+      setSrcBusy(false)
+    }
+  }, [srcForm, loadSources, load])
+
+  const removeSource = useCallback(async (src) => {
+    if (!window.confirm(`确定删除商店源「${src.name}」？其应用将从商店列表移除（已安装的不受影响）。`)) return
+    setSrcBusy(true); setSrcError(null)
+    try {
+      const res = await fetch(`/console/api/store/sources/${encodeURIComponent(src.id)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || '删除失败')
+      await loadSources()
+      await load()
+    } catch (e2) {
+      setSrcError(e2.message)
+    } finally {
+      setSrcBusy(false)
+    }
+  }, [loadSources, load])
+
+  const toggleSource = useCallback(async (src) => {
+    setSrcBusy(true); setSrcError(null)
+    try {
+      const res = await fetch(`/console/api/store/sources/${encodeURIComponent(src.id)}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !src.enabled })
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || '操作失败')
+      await loadSources()
+      await load()
+    } catch (e2) {
+      setSrcError(e2.message)
+    } finally {
+      setSrcBusy(false)
+    }
+  }, [loadSources, load])
 
   // 安装 / 更新（SSE）
   const runInstall = useCallback(async (app, action) => {
+    // 第三方源安装前展示信任警示
+    if (action === 'install' && app.sourceId && app.sourceId !== 'official') {
+      const ok = window.confirm(
+        `「${app.displayName || app.name}」来自第三方商店源「${app.sourceName || app.sourceId}」。\n\n其代码来自第三方仓库（${app.repo || '未知'}），安装后将在本机执行。\n请确认你信任该来源后再继续。`
+      )
+      if (!ok) return
+    }
+
     setBusy(app.name); setError(null)
     setLogs(prev => ({ ...prev, [app.name]: [] }))
     const ctrl = new AbortController()
@@ -161,12 +246,66 @@ export default function AppStore({ onInstalled }) {
     <div className="subapp-manager">
       <div className="subapp-header">
         <h2>应用商店</h2>
-        <button className="btn-secondary" disabled={loading || !!busy} onClick={load}>
-          {loading ? '加载中…' : '刷新'}
-        </button>
+        <div className="store-header-actions">
+          <button className="btn-secondary" disabled={!!busy} onClick={() => setShowSources(v => !v)}>
+            {showSources ? '收起商店源' : '商店源'}
+          </button>
+          <button className="btn-secondary" disabled={loading || !!busy} onClick={load}>
+            {loading ? '加载中…' : '刷新'}
+          </button>
+        </div>
       </div>
 
+      {showSources && (
+        <div className="store-sources">
+          <div className="store-sources-title">商店源管理</div>
+          {sources.map(src => (
+            <div className="store-source-row" key={src.id}>
+              <span className="store-source-name">
+                {src.name}
+                {src.official && <span className="store-badge official">官方</span>}
+              </span>
+              <span className="store-source-url" title={src.url}>{src.url}</span>
+              {src.official ? (
+                <span className="store-source-locked">锁定</span>
+              ) : (
+                <span className="store-source-actions">
+                  <button className="btn-secondary" disabled={srcBusy} onClick={() => toggleSource(src)}>
+                    {src.enabled ? '禁用' : '启用'}
+                  </button>
+                  <button className="btn-danger" disabled={srcBusy} onClick={() => removeSource(src)}>删除</button>
+                </span>
+              )}
+            </div>
+          ))}
+          <form className="store-source-form" onSubmit={addSource}>
+            <input
+              placeholder="源名称"
+              value={srcForm.name}
+              disabled={srcBusy}
+              onChange={e => setSrcForm(f => ({ ...f, name: e.target.value }))}
+            />
+            <input
+              placeholder="registry JSON 地址（http/https）"
+              value={srcForm.url}
+              disabled={srcBusy}
+              onChange={e => setSrcForm(f => ({ ...f, url: e.target.value }))}
+            />
+            <button className="btn-primary" type="submit" disabled={srcBusy || !srcForm.name.trim() || !srcForm.url.trim()}>
+              {srcBusy ? '验证中…' : '添加'}
+            </button>
+          </form>
+          {srcError && <div className="store-source-error" onClick={() => setSrcError(null)}>{srcError}（点击关闭）</div>}
+        </div>
+      )}
+
       {error && <div className="console-error" onClick={() => setError(null)}>{error} （点击关闭）</div>}
+
+      {sourceErrors.length > 0 && !hideSourceErrors && (
+        <div className="store-source-warning" onClick={() => setHideSourceErrors(true)}>
+          {sourceErrors.map(se => `源「${se.sourceName}」不可达：${se.error}`).join('；')}（点击关闭）
+        </div>
+      )}
 
       <div className="subapp-grid">
         {apps.map(app => {
@@ -175,6 +314,7 @@ export default function AppStore({ onInstalled }) {
           const installed = app.status === 'installed' || app.status === 'error'
           const badge = hasUpdate ? 'update' : app.status
           const appLogs = logs[app.name] || []
+          const thirdParty = app.sourceId && app.sourceId !== 'official'
           return (
             <div className="subapp-card" key={app.name}>
               <div className="subapp-card-head">
@@ -185,6 +325,11 @@ export default function AppStore({ onInstalled }) {
               </div>
               <div className="subapp-meta">
                 <span>name: {app.name}</span>
+                {app.sourceId && (
+                  <span className={`store-badge ${thirdParty ? 'third-party' : 'official'}`}>
+                    {thirdParty ? (app.sourceName || '第三方') : '官方'}
+                  </span>
+                )}
                 {app.repo && <span className="store-repo" title={app.repo}>{app.repo.replace('https://github.com/', '')}</span>}
                 {app.localVersion && <span>v{app.localVersion}</span>}
               </div>

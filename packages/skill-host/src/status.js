@@ -80,13 +80,14 @@ export async function listInstalled(projectsDir) {
  *
  * @param {object} opts
  * @param {string} opts.projectsDir
- * @param {object} [opts.registryOpts]  传给 fetchRemoteRegistry 的选项
- * @returns {Promise<Array<{ name, displayName, repo, localVersion?, remoteVersion?, status }>>}
+ * @param {function} [opts.getRegistry]  获取合并后注册表的函数（由 index.js 注入，避免重复拉取）
+ * @param {object} [opts.registryOpts]   兼容旧签名：未注入 getRegistry 时直连 fetchRemoteRegistry
+ * @returns {Promise<{ apps: Array<{ name, displayName, repo, sourceId?, sourceName?, localVersion?, status }>, sourceErrors: Array }>}
  */
-export async function listAvailable({ projectsDir, registryOpts = {} } = {}) {
+export async function listAvailable({ projectsDir, getRegistry, registryOpts = {} } = {}) {
   // 并行拉取远程注册中心和本地列表
   const [remoteData, installed] = await Promise.all([
-    fetchRemoteRegistry(registryOpts),
+    getRegistry ? getRegistry() : fetchRemoteRegistry(registryOpts),
     listInstalled(projectsDir)
   ])
 
@@ -102,6 +103,8 @@ export async function listAvailable({ projectsDir, registryOpts = {} } = {}) {
         displayName: local.displayName,
         repo: entry.repo,
         branch: entry.branch,
+        sourceId: entry.sourceId,
+        sourceName: entry.sourceName,
         localVersion: local.version,
         status: local.status === STATUS.ERROR ? STATUS.ERROR : STATUS.INSTALLED
       })
@@ -110,12 +113,14 @@ export async function listAvailable({ projectsDir, registryOpts = {} } = {}) {
         name: entry.name,
         repo: entry.repo,
         branch: entry.branch,
+        sourceId: entry.sourceId,
+        sourceName: entry.sourceName,
         status: STATUS.AVAILABLE
       })
     }
   }
 
-  return results
+  return { apps: results, sourceErrors: remoteData.sourceErrors || [] }
 }
 
 // ── 更新检测 ──────────────────────────────────────────────────────────────────
@@ -126,12 +131,13 @@ export async function listAvailable({ projectsDir, registryOpts = {} } = {}) {
  *
  * @param {object} opts
  * @param {string} opts.projectsDir
- * @param {object} [opts.registryOpts]
+ * @param {function} [opts.getRegistry]  获取合并后注册表的函数（由 index.js 注入）
+ * @param {object} [opts.registryOpts]   兼容旧签名
  * @returns {Promise<Array<{ name, localVersion, remoteVersion }>>}
  */
-export async function checkUpdates({ projectsDir, registryOpts = {} } = {}) {
+export async function checkUpdates({ projectsDir, getRegistry, registryOpts = {} } = {}) {
   const [remoteData, installed] = await Promise.all([
-    fetchRemoteRegistry(registryOpts),
+    getRegistry ? getRegistry() : fetchRemoteRegistry(registryOpts),
     listInstalled(projectsDir)
   ])
 

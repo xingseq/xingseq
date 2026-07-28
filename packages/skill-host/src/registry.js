@@ -8,7 +8,7 @@ import { getLogger } from '@xingseq/shared-utils/logger'
 const logger = getLogger('SkillRegistry')
 
 // ── 默认配置 ──────────────────────────────────────────────────────────────────
-const DEFAULT_REGISTRY_URL =
+export const DEFAULT_REGISTRY_URL =
   'https://raw.githubusercontent.com/xingseq/xingseq-agent-hub/main/sub-apps-registry.json'
 const DEFAULT_FETCH_TIMEOUT = 15_000
 
@@ -61,6 +61,49 @@ export async function fetchRemoteRegistry({
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * 并行拉取多个商店源并合并
+ *
+ * 合并规则：按源顺序遍历（官方源恒在首位），同名 name 先到先得
+ * → 官方源优先，第三方同名条目丢弃。单源失败不影响其它源。
+ *
+ * @param {Array<{ id, name, url, enabled }>} sources  商店源列表
+ * @param {object} [opts]
+ * @param {number} [opts.timeout]
+ * @returns {Promise<{ subApps: Array<RegistryEntry & { sourceId, sourceName }>, sourceErrors: Array<{ sourceId, sourceName, error }> }>}
+ */
+export async function fetchAllRegistries(sources, { timeout = DEFAULT_FETCH_TIMEOUT } = {}) {
+  const enabled = (sources || []).filter(s => s && s.enabled !== false)
+  const settled = await Promise.allSettled(
+    enabled.map(s => fetchRemoteRegistry({ registryUrl: s.url, timeout }))
+  )
+
+  const seen = new Set()
+  const subApps = []
+  const sourceErrors = []
+
+  settled.forEach((result, i) => {
+    const src = enabled[i]
+    if (result.status === 'rejected') {
+      const message = result.reason?.message || String(result.reason)
+      logger.warn(`商店源不可用 (${src.name}): ${message}`)
+      sourceErrors.push({ sourceId: src.id, sourceName: src.name, error: message })
+      return
+    }
+    for (const entry of result.value.subApps) {
+      if (!entry || !entry.name) continue
+      if (seen.has(entry.name)) {
+        logger.debug(`同名条目丢弃 (${entry.name} @ ${src.name})：前序源优先`)
+        continue
+      }
+      seen.add(entry.name)
+      subApps.push({ ...entry, sourceId: src.id, sourceName: src.name })
+    }
+  })
+
+  return { subApps, sourceErrors }
 }
 
 /**
