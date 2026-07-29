@@ -130,6 +130,62 @@ async function getSkillHost() {
   return skillHost
 }
 
+/**
+ * 子进程通用环境变量：
+ * 经 LaunchServices（open/双击）启动时 PATH 不含 homebrew 路径，
+ * 子应用会找不到 rsync/npm 等工具，这里统一补齐。
+ */
+function buildChildEnv(extra = {}) {
+  const basePath = process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin'
+  const mergedPath = [...new Set([...basePath.split(':'), '/opt/homebrew/bin', '/usr/local/bin'])].join(':')
+  return {
+    ...process.env,
+    PATH: mergedPath,
+    NODE_ENV: process.env.NODE_ENV || 'production',
+    ...extra
+  }
+}
+
+/** 在子应用根目录执行 shell 命令并等待退出（输出转发到控制台日志） */
+function runInApp(cmd, cwd, tag) {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, { cwd, env: buildChildEnv(), shell: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    p.stdout.on('data', d => { try { process.stdout.write(`[${tag}] ${d}`) } catch {} })
+    p.stderr.on('data', d => { try { process.stderr.write(`[${tag}] ${d}`) } catch {} })
+    p.on('error', () => resolve(false))
+    p.on('exit', (code) => resolve(code === 0))
+  })
+}
+
+/**
+ * requireBuild 子应用启动前确保 UI 产物存在（对齐 skill-host 安装流程）。
+ * 覆盖手动放入 projectsDir、或 dist 被清理的场景 —— 这类情况下
+ * server 的 /api/health 依然健康，但 GET / 会 404。
+ */
+async function ensureUiBuilt(entry, name) {
+  const conf = entry.manifest.ui
+  if (!conf?.requireBuild || !conf.buildCommand) return { ok: true }
+  const distDir = path.join(entry.rootPath, conf.dist || 'ui/dist')
+  try {
+    await fsp.access(path.join(distDir, 'index.html'))
+    return { ok: true }
+  } catch {}
+
+  console.log(`[console] ${name} UI 产物缺失，先执行构建: ${conf.buildCommand}`)
+  // node_modules 缺失时先装依赖，否则构建必然失败
+  try {
+    await fsp.access(path.join(entry.rootPath, 'node_modules'))
+  } catch {
+    if (!(await runInApp('npm install --no-fund --no-audit', entry.rootPath, `${name}:install`))) {
+      return { ok: false, error: `${name} 依赖安装失败` }
+    }
+  }
+  if (!(await runInApp(conf.buildCommand, entry.rootPath, `${name}:build`))) {
+    return { ok: false, error: `${name} UI 构建失败（${conf.buildCommand}）` }
+  }
+  return { ok: true }
+}
+
 /** 探测某端口的 health 路径是否就绪 */
 function probeHealth(port, healthPath) {
   return new Promise((resolve) => {
@@ -174,20 +230,19 @@ async function startOneServer(entry, section, name) {
     return { ok: true, port, external: true }
   }
 
+  // UI server 启动前确保前端产物已构建（requireBuild 声明的应用）
+  if (section === 'ui') {
+    const built = await ensureUiBuilt(entry, name)
+    if (!built.ok) return built
+  }
+
   const portEnv = conf.portEnv || 'PORT'
-  // 经 LaunchServices（open/双击）启动时 PATH 不含 homebrew 路径，
-  // 子应用会找不到 rsync 等工具或退化到系统 openrsync，这里统一补齐
-  const basePath = process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin'
-  const mergedPath = [...new Set([...basePath.split(':'), '/opt/homebrew/bin', '/usr/local/bin'])].join(':')
-  const childEnv = {
-    ...process.env,
-    PATH: mergedPath,
+  const childEnv = buildChildEnv({
     [portEnv]: String(port),
-    NODE_ENV: process.env.NODE_ENV || 'production',
     // Electron 可执行文件以纯 Node.js 模式运行子应用 server，
     // 避免每个子进程在 macOS Dock 上产生额外图标
     ELECTRON_RUN_AS_NODE: '1'
-  }
+  })
 
   // 兼容两套启动约定：
   //   1. startCommand 声明启动命令（如 `npm run subapp` / `make run`），经 shell 执行。
@@ -321,6 +376,26 @@ function stopSubApp(name) {
 
   running.delete(name)
   return { ok: true, stopped: true }
+}
+
+/**
+ * 启动所有 manifest 声明 autoStart: true 的子应用。
+ * 控制台启动后调用（fire-and-forget），失败只记日志不阻塞窗口。
+ */
+async function autoStartSubApps() {
+  for (const [name, entry] of registry) {
+    if (!entry.manifest.autoStart) continue
+    try {
+      const result = await startSubApp(name)
+      if (result.ok) {
+        console.log(`[console] 自动启动 ${name} 就绪 (端口 ${result.port})`)
+      } else {
+        console.warn(`[console] 自动启动 ${name} 失败: ${result.error}`)
+      }
+    } catch (err) {
+      console.warn(`[console] 自动启动 ${name} 异常: ${err.message}`)
+    }
+  }
 }
 
 /** 组装 /console/api/apps 返回体 */
@@ -617,6 +692,8 @@ app.whenReady().then(async () => {
     await startGateway()
     console.log('[console] creating window...')
     createWindow()
+    // 窗口就绪后台自动拉起 autoStart 子应用，不阻塞控制台展示
+    autoStartSubApps().catch(err => console.warn(`[console] 自动启动流程异常: ${err.message}`))
   } catch (err) {
     console.error('[console] failed to start:', err)
     app.quit()
