@@ -22,6 +22,7 @@ import { setSharedEnv } from '@xingseq/shared-utils/env'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
+import http from 'node:http'
 
 // ===== 1. 注入 shared env =====
 const userData = path.join(os.homedir(), '.xingseq', 'mail-app')
@@ -317,6 +318,48 @@ if (isOnce) {
   process.exit(0)
 }
 
+// ===== 10.5 健康检查 HTTP 服务（供 Electron 控制台监控/托管）=====
+// 端口同时充当实例锁：EADDRINUSE 说明已有网关在运行（如 launchd 服务），
+// 直接退出，避免两个实例同时轮询 IMAP 导致同一封邮件被重复回复。
+const healthPort = parseInt(process.env.MAIL_GATEWAY_PORT || '7830', 10)
+const startedAt = Date.now()
+let monitorRunning = false
+
+const healthServer = http.createServer((req, res) => {
+  const { pathname } = new URL(req.url, `http://localhost:${healthPort}`)
+  if (req.method === 'GET' && pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({
+      ok: true,
+      service: 'mail-gateway',
+      mode: isDry ? 'dry' : isMock ? 'mock' : 'live',
+      email: mailConfig.email || 'assistant@test.local',
+      monitorRunning,
+      processedEmails: processedEmails.size,
+      uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+      pid: process.pid
+    }))
+    return
+  }
+  res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify({ error: 'Not Found' }))
+})
+
+await new Promise((resolve) => {
+  healthServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[mail-gateway] 端口 ${healthPort} 已被占用，可能已有网关实例在运行，退出`)
+    } else {
+      console.error(`[mail-gateway] 健康检查服务启动失败: ${err.message}`)
+    }
+    process.exit(1)
+  })
+  healthServer.listen(healthPort, () => {
+    console.log(`[mail-gateway] 健康检查: http://localhost:${healthPort}/api/health`)
+    resolve()
+  })
+})
+
 // ===== 11. 启动邮件网关 =====
 console.log('═══════════════════════════════════════════')
 console.log('  星序邮件网关 (MailGateway)')
@@ -344,6 +387,7 @@ monitor.on('error', (err) => {
 })
 
 await monitor.start()
+monitorRunning = true
 
 console.log(`\n📧 邮件网关已启动`)
 console.log(`   监听邮箱: ${mailConfig.email || 'assistant@test.local'}`)
@@ -361,11 +405,13 @@ if (isDry || isMock) {
 process.on('SIGINT', () => {
   console.log('\n🛑 正在停止邮件网关...')
   monitor.stop()
+  healthServer.close()
   console.log('✅ 已停止')
   process.exit(0)
 })
 
 process.on('SIGTERM', () => {
   monitor.stop()
+  healthServer.close()
   process.exit(0)
 })
