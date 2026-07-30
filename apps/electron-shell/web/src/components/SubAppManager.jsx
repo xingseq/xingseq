@@ -51,6 +51,7 @@ export default function SubAppManager({ apps = [], onRefresh, onOpen }) {
       <div className="subapp-grid">
         {apps.map(app => {
           const hasUi = app.ui && app.ui.enabled !== false && app.ui.port
+          const hasApi = app.api && app.api.enabled !== false && app.api.port
           const isBusy = busy === app.name
           return (
             <div className="subapp-card" key={app.name}>
@@ -66,6 +67,7 @@ export default function SubAppManager({ apps = [], onRefresh, onOpen }) {
                 {hasUi
                   ? <span>UI: :{app.ui.port}</span>
                   : <span className="subapp-noui">无 UI</span>}
+                {hasApi && <span>API: :{app.api.port}</span>}
                 {app.cli && <span>CLI ✓</span>}
               </div>
               <div className="subapp-actions">
@@ -78,7 +80,7 @@ export default function SubAppManager({ apps = [], onRefresh, onOpen }) {
                   ? <button className="btn-danger" disabled={isBusy} onClick={() => stop(app)}>
                       {isBusy ? '处理中…' : '停止'}
                     </button>
-                  : <button className="btn-secondary" disabled={isBusy || !hasUi} onClick={() => start(app)}>
+                  : <button className="btn-secondary" disabled={isBusy || (!hasUi && !hasApi)} onClick={() => start(app)}>
                       {isBusy ? '启动中…' : '启动'}
                     </button>}
               </div>

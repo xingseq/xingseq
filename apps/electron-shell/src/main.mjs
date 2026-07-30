@@ -402,6 +402,7 @@ async function autoStartSubApps() {
 function listApps() {
   return [...registry.values()].map(({ manifest, source }) => {
     const ui = manifest.ui
+    const api = manifest.api
     return {
       name: manifest.name,
       displayName: manifest.displayName || manifest.name,
@@ -411,6 +412,9 @@ function listApps() {
       cli: !!(manifest.cli && manifest.cli.enabled),
       ui: ui && ui.enabled !== false && ui.port
         ? { enabled: true, port: ui.port }
+        : null,
+      api: api && api.enabled !== false && api.port
+        ? { enabled: true, port: api.port }
         : null,
       running: running.has(manifest.name)
     }
