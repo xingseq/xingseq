@@ -3,8 +3,16 @@
   "displayName": "邮件",
   "description": "邮件网关（IMAP 轮询 + SMTP 回复）+ 邮件 CLI，AI 自动回复",
   "version": "0.1.0",
+  "autoStart": true,
   "ui": {
     "enabled": false
+  },
+  "api": {
+    "enabled": true,
+    "port": 7830,
+    "portEnv": "MAIL_GATEWAY_PORT",
+    "healthPath": "/api/health",
+    "startCommand": "exec node src/cli.mjs gateway"
   },
   "cli": {
     "enabled": true,
