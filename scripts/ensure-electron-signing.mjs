@@ -5,7 +5,15 @@
  * 背景：
  *   macOS 26.x 的 AMFI + syspolicyd 策略会 SIGKILL 未正确签名的二进制，
  *   即使 linker-signed 的 adhoc 签名也会被拒绝（"has no CMS blob"）。
- *   此脚本检查签名并自动修复。
+ *   同时 macOS Gatekeeper/XProtect 会将未签名/未公证的 .app 标记为恶意
+ *   软件并移入废纸篓（com.apple.quarantine 扩展属性）。
+ *
+ *   此脚本执行以下修复链：
+ *   1. 检测 Frameworks/ 目录完整性（不只是 Electron.app 存在）
+ *   2. 从本地缓存解压（若缺失或不完整）
+ *   3. 移除 com.apple.quarantine 隔离属性
+ *   4. adhoc 重签名以添加 CMS blob
+ *   5. 写入 dist/version 防止 install.js 重复下载
  *
  * 用法：node scripts/ensure-electron-signing.mjs
  */
@@ -32,6 +40,10 @@ const DESIRED_APP_NAME = 'XingSeq'
 
 function log(msg) { console.log(`[electron-sign] ${msg}`) }
 function warn(msg) { console.warn(`[electron-sign] ⚠ ${msg}`) }
+function fail(msg) {
+  console.error(`[electron-sign] ✗ ${msg}`)
+  process.exit(1)
+}
 
 function hasElectronDep() {
   try {
@@ -42,6 +54,18 @@ function hasElectronDep() {
   } catch { return false }
 }
 
+/** 检查 Electron.app 是否完整（Frameworks/ 目录存在且有内容） */
+function isBundleComplete(bundlePath) {
+  if (!existsSync(bundlePath)) return false
+  const fmwk = path.join(bundlePath, 'Contents', 'Frameworks')
+  if (!existsSync(fmwk)) return false
+  try {
+    // 至少要有 Electron Framework.framework 才算完整
+    const entries = readdirSync(fmwk)
+    return entries.some(e => e.startsWith('Electron Framework'))
+  } catch { return false }
+}
+
 /** 检查签名是否包含 CMS blob */
 function hasValidSignature(bundlePath) {
   try {
@@ -49,6 +73,14 @@ function hasValidSignature(bundlePath) {
     const output = execSync(`codesign -dvvv "${bundlePath}" 2>&1`, { encoding: 'utf-8', timeout: 5000 })
     return output.includes('CMSDigest=')
   } catch { return false }
+}
+
+/** 移除 com.apple.quarantine 隔离属性（防止被 Gatekeeper 拦截） */
+function removeQuarantine(bundlePath) {
+  try {
+    execSync(`xattr -d com.apple.quarantine "${bundlePath}" 2>/dev/null`, { timeout: 3000 })
+    return true
+  } catch { return false } // 属性不存在也算正常
 }
 
 /** 读取 bundle 的 CFBundleIdentifier */
@@ -111,28 +143,43 @@ function findCachedZip(electronVersion) {
     process.exit(0)
   }
 
-  // 如果 Electron.app 不存在，尝试从缓存安装
-  if (!existsSync(appPath)) {
-    warn('Electron.app 不存在，尝试从缓存安装...')
+  // 如果 Electron.app 不存在或不完整（如缺少 Frameworks/），尝试修复
+  if (!isBundleComplete(appPath)) {
+    if (existsSync(appPath)) {
+      warn('Electron.app 不完整（缺少 Frameworks/），将重新解压...')
+    } else {
+      warn('Electron.app 不存在，尝试从缓存安装...')
+    }
     const cachedZip = findCachedZip(electronVersion)
     if (cachedZip) {
       log(`从缓存解压: ${cachedZip}`)
-      execSync(`unzip -o "${cachedZip}" -d "${distDir}"`, { stdio: 'pipe', timeout: 60000 })
+      execSync(`unzip -o -q "${cachedZip}" -d "${distDir}"`, { stdio: 'pipe', timeout: 60000 })
+      log('解压完成')
     } else {
-      log('运行 electron install.js 下载...')
+      log('缓存中无对应版本，运行 electron install.js 下载...')
       try {
         execSync('node install.js', { cwd: electronPkgDir, stdio: 'inherit', timeout: 120000 })
       } catch (err) {
-        warn(`install.js 失败: ${err.message}`)
-        process.exit(0)
+        fail(`install.js 失败: ${err.message}，请检查网络后手动运行 node node_modules/electron/install.js`)
       }
     }
   }
 
-  if (!existsSync(appPath)) {
-    warn('Electron.app 仍不存在，请检查网络并手动运行 node node_modules/electron/install.js')
-    process.exit(0)
+  if (!isBundleComplete(appPath)) {
+    fail('Electron.app 仍不完整，请检查网络并手动运行 node node_modules/electron/install.js')
   }
+
+  log(`Electron.app 完整 ✓ (v${electronVersion})`)
+
+  // 移除隔离属性——必须在签名前执行，否则 macOS Gatekeeper 可能
+  // 在签名完成之前就将 .app 标记为恶意软件并移入废纸篓
+  log('移除隔离属性...')
+  removeQuarantine(appPath)
+  // 递归清除内部所有二进制和 framework 的隔离属性
+  try {
+    execSync(`xattr -dr com.apple.quarantine "${appPath}" 2>/dev/null`, { timeout: 5000 })
+    log('隔离属性已清除')
+  } catch { /* 某些文件可能没有该属性，忽略 */ }
 
   // 身份改造 + 签名检查与修复
   // 重装 electron 后 bundle id 会被重置为 com.github.Electron，需重新改造并签名。
@@ -160,11 +207,21 @@ function findCachedZip(electronVersion) {
     }
   }
 
-  // 确保 path.txt 存在
+  // 确保 path.txt 存在（electron 的 install.js 用它判断已安装）
   if (!existsSync(pathTxt)) {
     writeFileSync(pathTxt, 'Electron.app/Contents/MacOS/Electron')
     log('已创建 path.txt')
   }
 
-  log('完成')
+  // 确保 dist/version 存在（electron install.js 的 isInstalled() 检查此文件）
+  const distVersionFile = path.join(distDir, 'version')
+  const currentDistVersion = (() => {
+    try { return readFileSync(distVersionFile, 'utf-8').trim() } catch { return '' }
+  })()
+  if (currentDistVersion !== electronVersion) {
+    writeFileSync(distVersionFile, electronVersion)
+    log(`已写入 dist/version: ${electronVersion}`)
+  }
+
+  log('完成 ✓')
 })()

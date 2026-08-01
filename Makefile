@@ -114,11 +114,14 @@ continue-bridge: ## 启动 Continue.dev 桥接服务（:3003），当前目录�
 # ---------------------------------------------------------------------------
 # Electron 综合控制台
 # ---------------------------------------------------------------------------
-.PHONY: electron electron-build electron-web-install
+.PHONY: electron electron-sign electron-build electron-web-install
 
 electron: ## 启动 Electron 综合控制台（macOS 经 LaunchServices 启动以使 TCC 授权生效）
 	@node scripts/ensure-electron-signing.mjs
 	@node scripts/launch-electron.mjs
+
+electron-sign: ## 单独执行 Electron 签名修复（修复缺失 Frameworks/、隔离属性、CMS blob 等问题）
+	@node scripts/ensure-electron-signing.mjs
 
 electron-web-install: ## 安装控制台前端依赖（首次）
 	npm run web:install -w apps/electron-shell
