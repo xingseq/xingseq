@@ -89,10 +89,11 @@ export default function AppStore({ onInstalled }) {
     } catch { /* 忽略 */ }
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setLoading(true); setError(null)
     try {
-      const res = await fetch('/console/api/store/apps')
+      // force=true 时带 ?force=1 绕过后端 5 分钟注册表缓存（否则缓存的 sourceErrors 会让刷新无效）
+      const res = await fetch(`/console/api/store/apps${force ? '?force=1' : ''}`)
       const data = await res.json()
       setApps(data.apps || [])
       setSourceErrors(data.sourceErrors || [])
@@ -250,7 +251,7 @@ export default function AppStore({ onInstalled }) {
           <button className="btn-secondary" disabled={!!busy} onClick={() => setShowSources(v => !v)}>
             {showSources ? '收起商店源' : '商店源'}
           </button>
-          <button className="btn-secondary" disabled={loading || !!busy} onClick={load}>
+          <button className="btn-secondary" disabled={loading || !!busy} onClick={() => load(true)}>
             {loading ? '加载中…' : '刷新'}
           </button>
         </div>

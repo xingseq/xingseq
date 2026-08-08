@@ -553,10 +553,12 @@ async function handleGateway(req, res) {
 
   // ── 应用商店（skill-host）─────────────────────────────────────
   // GET /console/api/store/apps — 多源合并+本地可用列表（含 sourceErrors）
+  // ?force=1 时强制重拉注册表，绕过 5 分钟 TTL 缓存（含缓存的 sourceErrors）
   if (method === 'GET' && pathname === '/console/api/store/apps') {
     try {
       const host = await getSkillHost()
-      const { apps, sourceErrors } = await host.listAvailable()
+      const forceRefresh = url.searchParams.get('force') === '1'
+      const { apps, sourceErrors } = await host.listAvailable({ forceRefresh })
       return sendJSON(res, 200, { apps, sourceErrors })
     } catch (err) {
       // 远程拉取失败不算服务错误，返回空列表 + 错误提示

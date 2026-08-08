@@ -137,8 +137,9 @@ export function createSkillHost({
     },
 
     /** 列出所有可用子应用（合并远程与本地状态，含 sourceErrors） */
-    async listAvailable() {
-      return listAvailable({ projectsDir, getRegistry })
+    async listAvailable({ forceRefresh = false } = {}) {
+      // forceRefresh 时跳过 5 分钟 TTL 缓存（否则连 sourceErrors 也会被缓存，导致前端刷新无效）
+      return listAvailable({ projectsDir, getRegistry: () => getRegistry(forceRefresh) })
     },
 
     /** 检查哪些已安装的子应用有更新 */

@@ -57,7 +57,9 @@ export async function fetchRemoteRegistry({
     if (err.name === 'AbortError') {
       throw new Error(`拉取注册中心超时 (${timeout}ms)`)
     }
-    throw new Error(`拉取注册中心失败: ${err.message}`)
+    // undici 网络层错误只抛 "fetch failed"，真实原因（ECONNREFUSED/EHOSTUNREACH 等）在 cause 里
+    const cause = err.cause ? ` (${err.cause.code || err.cause.message})` : ''
+    throw new Error(`拉取注册中心失败: ${err.message}${cause}`)
   } finally {
     clearTimeout(timer)
   }
