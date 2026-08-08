@@ -22,10 +22,12 @@ const DEFAULT_FETCH_TIMEOUT = 15_000
  *
  * @typedef {object} RegistryEntry
  * @property {string} name          子应用名
- * @property {string} repo          GitHub 仓库地址
+ * @property {string} repo          仓库地址（GitHub/Gitea 等）
  * @property {string} branch        默认分支
  * @property {string} manifestPath  manifest 文件在仓库中的路径
- * @property {string} source        来源类型（github）
+ * @property {string} [source]      来源类型（github | gitea，缺省按 github 处理）
+ * @property {string} [rawUrlTemplate]  自定义 raw manifest URL 模板（优先于 source），
+ *                                      支持占位符 {repo} {branch} {manifestPath}
  */
 export async function fetchRemoteRegistry({
   registryUrl = DEFAULT_REGISTRY_URL,
@@ -109,6 +111,35 @@ export async function fetchAllRegistries(sources, { timeout = DEFAULT_FETCH_TIME
 }
 
 /**
+ * 解析注册中心条目对应的 raw manifest URL
+ *
+ * 优先级：rawUrlTemplate（源作者自定义模板）> source: 'gitea' 约定格式 > GitHub 默认改写。
+ * Gitea raw 路径约定：{repo}/raw/branch/{branch}/{manifestPath}
+ *
+ * @param {RegistryEntry} entry
+ * @returns {string}
+ */
+export function resolveManifestRawUrl(entry) {
+  const repoUrl = (entry.repo || '').replace(/\.git$/, '')
+  const branch = entry.branch || 'main'
+  const manifestPath = entry.manifestPath || 'sub-app-manifest.json'
+
+  if (entry.rawUrlTemplate) {
+    return entry.rawUrlTemplate
+      .replaceAll('{repo}', repoUrl)
+      .replaceAll('{branch}', branch)
+      .replaceAll('{manifestPath}', manifestPath)
+  }
+
+  if (entry.source === 'gitea') {
+    return `${repoUrl}/raw/branch/${branch}/${manifestPath}`
+  }
+
+  // 默认：GitHub 仓库改写为 raw.githubusercontent.com
+  return repoUrl.replace('github.com', 'raw.githubusercontent.com') + `/${branch}/${manifestPath}`
+}
+
+/**
  * 获取单个子应用的远程 manifest
  *
  * @param {RegistryEntry} entry  注册中心条目
@@ -117,10 +148,7 @@ export async function fetchAllRegistries(sources, { timeout = DEFAULT_FETCH_TIME
  * @returns {Promise<object>} 远程 manifest 内容
  */
 export async function fetchRemoteManifest(entry, { timeout = DEFAULT_FETCH_TIMEOUT } = {}) {
-  // 从 GitHub 仓库拉取 raw manifest
-  const repoUrl = entry.repo.replace(/\.git$/, '')
-  const rawUrl = repoUrl
-    .replace('github.com', 'raw.githubusercontent.com') + `/${entry.branch}/${entry.manifestPath}`
+  const rawUrl = resolveManifestRawUrl(entry)
 
   logger.debug(`拉取远程 manifest: ${rawUrl}`)
 

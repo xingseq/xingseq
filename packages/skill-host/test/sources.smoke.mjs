@@ -19,7 +19,7 @@ import {
   listSources, addSource, removeSource, setSourceEnabled,
   OFFICIAL_SOURCE_ID, sourcesFilePath
 } from '../src/sources.js'
-import { fetchAllRegistries } from '../src/registry.js'
+import { fetchAllRegistries, fetchRemoteManifest, resolveManifestRawUrl } from '../src/registry.js'
 import { createSkillHost } from '../src/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -43,7 +43,10 @@ const registries = {
       { name: 'b-only', repo: 'https://github.com/example/b-only', branch: 'main', manifestPath: 'sub-app-manifest.json', source: 'github' }
     ]
   },
-  '/bad-format.json': { hello: 'no subApps here' }
+  '/bad-format.json': { hello: 'no subApps here' },
+  // 非 GitHub 源的 raw manifest（gitea 约定路径 / rawUrlTemplate 自定义路径）
+  '/ws/demo-app/raw/branch/main/sub-app-manifest.json': { name: 'gitea-app', version: '1.1.0' },
+  '/whatever/custom/dev/sub-app-manifest.json': { name: 'tpl-app', version: '2.0.0' }
 }
 
 function startServer() {
@@ -171,6 +174,42 @@ try {
   sources = await listSources(projectsDir)
   assert.equal(sources.length, 1)
   console.log('  ✓ 实例级 removeSource')
+
+  // ── 4. 非 GitHub 源 manifest 拉取（gitea / rawUrlTemplate）─────────────
+  console.log('4. 非 GitHub 源 manifest 拉取')
+
+  // 默认行为不变：GitHub 改写为 raw.githubusercontent.com
+  assert.equal(
+    resolveManifestRawUrl({ name: 'x', repo: 'https://github.com/a/b.git', branch: 'main', manifestPath: 'sub-app-manifest.json', source: 'github' }),
+    'https://raw.githubusercontent.com/a/b/main/sub-app-manifest.json',
+    'GitHub 默认改写保持兼容'
+  )
+  // gitea 约定：{repo}/raw/branch/{branch}/{manifestPath}
+  assert.equal(
+    resolveManifestRawUrl({ name: 'x', repo: `${base}/ws/demo-app`, branch: 'main', manifestPath: 'sub-app-manifest.json', source: 'gitea' }),
+    `${base}/ws/demo-app/raw/branch/main/sub-app-manifest.json`
+  )
+  // rawUrlTemplate 优先于 source，占位符展开
+  assert.equal(
+    resolveManifestRawUrl({ name: 'x', repo: `${base}/whatever.git`, branch: 'dev', manifestPath: 'sub-app-manifest.json', source: 'gitea', rawUrlTemplate: '{repo}/custom/{branch}/{manifestPath}' }),
+    `${base}/whatever/custom/dev/sub-app-manifest.json`
+  )
+  console.log('  ✓ raw URL 解析（github 兼容 / gitea 约定 / 自定义模板优先）')
+
+  const giteaMf = await fetchRemoteManifest({
+    name: 'gitea-app', repo: `${base}/ws/demo-app`, branch: 'main',
+    manifestPath: 'sub-app-manifest.json', source: 'gitea'
+  })
+  assert.equal(giteaMf.version, '1.1.0')
+  console.log('  ✓ gitea 源实际拉取 raw manifest 成功')
+
+  const tplMf = await fetchRemoteManifest({
+    name: 'tpl-app', repo: `${base}/whatever`, branch: 'dev',
+    manifestPath: 'sub-app-manifest.json',
+    rawUrlTemplate: '{repo}/custom/{branch}/{manifestPath}'
+  })
+  assert.equal(tplMf.version, '2.0.0')
+  console.log('  ✓ rawUrlTemplate 实际拉取成功')
 
   console.log('\n全部冒烟用例通过 ✅')
 } finally {

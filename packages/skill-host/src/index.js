@@ -199,7 +199,7 @@ export function createSkillHost({
 }
 
 // ── 导出子模块 ────────────────────────────────────────────────────────────────
-export { fetchRemoteRegistry, fetchAllRegistries, fetchRemoteManifest, DEFAULT_REGISTRY_URL } from './registry.js'
+export { fetchRemoteRegistry, fetchAllRegistries, fetchRemoteManifest, resolveManifestRawUrl, DEFAULT_REGISTRY_URL } from './registry.js'
 export {
   listSources, addSource, removeSource, setSourceEnabled,
   getOfficialSource, OFFICIAL_SOURCE_ID, sourcesFilePath
