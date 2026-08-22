@@ -29,10 +29,18 @@ const DEFAULT_BUILD_TIMEOUT = 120_000   // build 超时
  */
 function runCommand(cmd, args, { cwd, timeout = 60_000, env } = {}) {
   return new Promise((resolve) => {
+    // 剥离外部 askpass 代理（IDE 终端会注入 GIT_ASKPASS 指向自身 UI），
+    // 并禁止 git 交互式索要凭据：需要认证的仓库应快速失败，
+    // 而不是挂起等待或把弹窗泄漏到宿主 IDE
+    const childEnv = { ...(env || process.env) }
+    delete childEnv.GIT_ASKPASS
+    delete childEnv.SSH_ASKPASS
+    childEnv.GIT_TERMINAL_PROMPT = '0'
+
     const child = spawn(cmd, args, {
       cwd,
       timeout,
-      env: env || { ...process.env },
+      env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: process.platform === 'win32'
     })
@@ -105,7 +113,10 @@ export async function install({
 
   if (!cloneResult.success) {
     await removeDir(targetDir)
-    const error = `Git clone 失败: ${cloneResult.stderr || cloneResult.error}`
+    let error = `Git clone 失败: ${cloneResult.stderr || cloneResult.error}`
+    if (/Authentication failed|could not read Username|Unauthorized|401/i.test(error)) {
+      error += '\n该仓库需要认证（私有仓库）：应用商店仅支持可匿名克隆的公开仓库'
+    }
     logger.error(error)
     return { success: false, name, error }
   }
