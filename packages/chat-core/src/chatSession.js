@@ -29,6 +29,7 @@ import { WEB_TOOLS, createWebHandlers } from './tools/web.js'
 import { FS_TOOLS, createFsHandlers } from './tools/fs.js'
 import { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
 import { EMAIL_TOOLS, createEmailHandlers } from './tools/email.js'
+import { QODER_TOOLS, createQoderHandlers } from './tools/qoder.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 import { loadExternalTools } from './toolLoader.js'
 import path from 'node:path'
@@ -53,8 +54,11 @@ export async function createWorkspaceRegistry({
   enableFs = true,
   enableShell = true,
   enableEmail = false,
+  enableQoder = false,
   enableSubApps = true,
   emailSendFn = null,
+  qoderBinPath = null,
+  qoderAllowedRoot = null,
   toolDirs = [path.join(os.homedir(), '.xingseq', 'tools')],
   projectsDir = path.join(os.homedir(), 'Library', 'Application Support', 'xingseq', 'projects')
 } = {}) {
@@ -93,6 +97,13 @@ export async function createWorkspaceRegistry({
       displayName: '邮件工具',
       tools: EMAIL_TOOLS,
       handlers: createEmailHandlers({ sendFn: emailSendFn || undefined })
+    })
+  }
+  if (enableQoder) {
+    registry.register('qoder', {
+      displayName: 'Qoder 编程工具',
+      tools: QODER_TOOLS,
+      handlers: createQoderHandlers({ binPath: qoderBinPath || undefined, allowedRoot: qoderAllowedRoot || undefined })
     })
   }
   if (enableSubApps) {

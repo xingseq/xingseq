@@ -23,7 +23,8 @@ export const DEFAULT_SENSITIVE_TOOLS = [
   'delete_record',
   'create_table',
   'download_file',
-  'send_email'
+  'send_email',
+  'qoder_task'
 ]
 
 /**

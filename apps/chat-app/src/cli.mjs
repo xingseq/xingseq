@@ -133,9 +133,11 @@ if (isList) {
 // session 的静态类型仅声明为 IChatProvider —— 不管底下是 chat-core 还是 agent，
 // 这段代码都不需要修改。
 // --json 模式下启用 email 工具（send_email 走 mail-app CLI 回调）
+// 与 qoder 工具（qoder_task 走 Qoder CLI headless，供邮件助手等无人值守链路使用）
 const registry = await createWorkspaceRegistry({
   workspace,
-  enableEmail: isJson
+  enableEmail: isJson,
+  enableQoder: isJson
 })
 /** @type {import('@xingseq/chat-core').IChatProvider} */
 const session = createProvider({

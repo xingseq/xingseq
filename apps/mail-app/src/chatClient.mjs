@@ -38,7 +38,8 @@ export function chatViaCli({ message, conversationId, workspace, live = true }) 
   return new Promise((resolve) => {
     execFile('node', [CHAT_APP_CLI, ...args], {
       maxBuffer: 10 * 1024 * 1024,
-      timeout: 120000,
+      // 邮件场景异步无怨言；需覆盖 qoder_task（Qoder CLI headless）最长 10 分钟的执行时间
+      timeout: 15 * 60 * 1000,
       cwd: path.resolve(__dirname, '../..')
     }, (err, stdout, stderr) => {
       if (err) {
