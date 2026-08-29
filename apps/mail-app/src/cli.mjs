@@ -35,6 +35,10 @@ switch (subcommand) {
     await runOnce()
     break
 
+  case 'projects':
+    await runProjects()
+    break
+
   case '--help':
   case '-h':
     showHelp()
@@ -146,6 +150,81 @@ async function runOnce() {
   await import('./gateway.mjs')
 }
 
+// ===== projects 子命令：管理 qoder_task 可访问的项目清单 =====
+async function runProjects() {
+  const path = await import('node:path')
+  const os = await import('node:os')
+  const fs = await import('node:fs')
+
+  const cfgPath = path.join(os.homedir(), '.xingseq', 'qoder-projects.json')
+  const load = () => {
+    try { return JSON.parse(fs.readFileSync(cfgPath, 'utf8')) } catch { return {} }
+  }
+  const save = (cfg) => fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n')
+
+  const [action, name, value, ...rest] = args.slice(1)
+  const cfg = load()
+  cfg.projects = Array.isArray(cfg.projects) ? cfg.projects : []
+
+  switch (action) {
+    case undefined:
+    case 'list': {
+      console.log(`配置文件: ${cfgPath}`)
+      if (!cfg.projects.length) {
+        console.log('（空）用 projects add <name> <path> [description] 注册项目')
+        break
+      }
+      for (const p of cfg.projects) {
+        const mark = cfg.defaultProject === p.name ? '*' : ' '
+        const exists = fs.existsSync(p.path) ? '' : '  [目录不存在，已被忽略]'
+        console.log(`${mark} ${p.name.padEnd(16)} ${p.path}${p.description ? '  # ' + p.description : ''}${exists}`)
+      }
+      console.log(`\n* = 默认项目（邮件里不指定项目名时使用）`)
+      break
+    }
+    case 'add': {
+      if (!name || !value) {
+        console.error('用法: projects add <name> <path> [description]')
+        process.exit(1)
+      }
+      const abs = path.resolve(value)
+      if (!fs.existsSync(abs)) {
+        console.warn(`[警告] 目录不存在: ${abs}（仍已登记，目录出现后自动生效）`)
+      }
+      const description = rest.join(' ') || ''
+      cfg.projects = cfg.projects.filter(p => p.name !== name)
+      cfg.projects.push({ name, path: abs, ...(description ? { description } : {}) })
+      if (!cfg.defaultProject) cfg.defaultProject = name
+      save(cfg)
+      console.log(`[mail-app] 已注册项目 ${name} → ${abs}`)
+      break
+    }
+    case 'remove': {
+      if (!name) { console.error('用法: projects remove <name>'); process.exit(1) }
+      const before = cfg.projects.length
+      cfg.projects = cfg.projects.filter(p => p.name !== name)
+      if (cfg.defaultProject === name) cfg.defaultProject = cfg.projects[0]?.name || null
+      save(cfg)
+      console.log(before === cfg.projects.length ? `未找到项目: ${name}` : `已移除 ${name}`)
+      break
+    }
+    case 'default': {
+      if (!name || !cfg.projects.some(p => p.name === name)) {
+        console.error('用法: projects default <name>（须为已注册项目）')
+        process.exit(1)
+      }
+      cfg.defaultProject = name
+      save(cfg)
+      console.log(`默认项目 → ${name}`)
+      break
+    }
+    default:
+      console.error(`未知操作: ${action}（支持 list/add/remove/default）`)
+      process.exit(1)
+  }
+  process.exit(0)
+}
+
 // ===== help =====
 function showHelp() {
   console.log(`
@@ -159,6 +238,10 @@ mail-app - 星序邮件应用
   send --to <email> --subject <s> --body <b> 发送邮件
   send-test [message]                        投递测试邮件到虚拟邮箱
   once [--dry] <message>                     单次 AI 对话测试
+  projects [list|add|remove|default]         管理 qoder_task 可访问的项目清单
+    projects add <name> <path> [description] 登记项目（name 供邮件 AI 引用）
+    projects remove <name>                   移除项目
+    projects default <name>                  设置默认项目
 
 选项:
   --mock    使用虚拟邮箱 + 真实 LLM

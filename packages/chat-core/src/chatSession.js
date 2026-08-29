@@ -29,7 +29,7 @@ import { WEB_TOOLS, createWebHandlers } from './tools/web.js'
 import { FS_TOOLS, createFsHandlers } from './tools/fs.js'
 import { SHELL_TOOLS, createShellHandlers } from './tools/shell.js'
 import { EMAIL_TOOLS, createEmailHandlers } from './tools/email.js'
-import { QODER_TOOLS, createQoderHandlers } from './tools/qoder.js'
+import { createQoderToolGroup } from './tools/qoder.js'
 import { createWorkspaceStore } from './workspaceStore.js'
 import { loadExternalTools } from './toolLoader.js'
 import path from 'node:path'
@@ -100,10 +100,12 @@ export async function createWorkspaceRegistry({
     })
   }
   if (enableQoder) {
+    // 项目注册表（~/.xingseq/qoder-projects.json）注入工具描述与多根白名单
+    const qoderGroup = createQoderToolGroup({ binPath: qoderBinPath || undefined, allowedRoot: qoderAllowedRoot || undefined })
     registry.register('qoder', {
       displayName: 'Qoder 编程工具',
-      tools: QODER_TOOLS,
-      handlers: createQoderHandlers({ binPath: qoderBinPath || undefined, allowedRoot: qoderAllowedRoot || undefined })
+      tools: qoderGroup.tools,
+      handlers: qoderGroup.handlers
     })
   }
   if (enableSubApps) {
