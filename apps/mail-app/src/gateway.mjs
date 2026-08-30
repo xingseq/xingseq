@@ -23,6 +23,7 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import http from 'node:http'
+import { fileURLToPath } from 'node:url'
 
 // ===== 1. 注入 shared env =====
 const userData = path.join(os.homedir(), '.xingseq', 'mail-app')
@@ -318,31 +319,141 @@ if (isOnce) {
   process.exit(0)
 }
 
-// ===== 10.5 健康检查 HTTP 服务（供 Electron 控制台监控/托管）=====
+// ===== 10.5 管理界面 HTTP 服务（健康检查 + 项目管理 API + Web UI 静态服务）=====
+// 同一端口提供三类能力，供 Electron 控制台 iframe 嵌入与运维排查：
+//   /api/health           健康检查（控制台探测/复用）
+//   /api/projects*        qoder_task 项目注册表 CRUD
+//   /api/logs/tail        网关日志尾部（launchd StandardOutPath）
+//   其余 GET              Web UI 静态文件（web/dist，SPA fallback）
 // 端口同时充当实例锁：EADDRINUSE 说明已有网关在运行（如 launchd 服务），
 // 直接退出，避免两个实例同时轮询 IMAP 导致同一封邮件被重复回复。
 const healthPort = parseInt(process.env.MAIL_GATEWAY_PORT || '7830', 10)
 const startedAt = Date.now()
 let monitorRunning = false
 
-const healthServer = http.createServer((req, res) => {
-  const { pathname } = new URL(req.url, `http://localhost:${healthPort}`)
+const webDistDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'dist')
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2'
+}
+
+function sendJson(res, status, obj) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify(obj))
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let buf = ''
+    req.on('data', d => {
+      buf += d
+      if (buf.length > 1024 * 1024) req.destroy()
+    })
+    req.on('end', () => {
+      try { resolve(buf ? JSON.parse(buf) : {}) } catch (e) { reject(e) }
+    })
+    req.on('error', reject)
+  })
+}
+
+function serveStatic(res, pathname) {
+  const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1))
+  let target = path.normalize(path.join(webDistDir, rel))
+  if (!target.startsWith(webDistDir)) return sendJson(res, 403, { error: 'Forbidden' })
+  if (!fs.existsSync(target) || fs.statSync(target).isDirectory()) {
+    // SPA fallback：非资源路径回退 index.html
+    target = path.join(webDistDir, 'index.html')
+  }
+  if (!fs.existsSync(target)) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    return res.end('<h1>mail-app 管理界面未构建</h1><p>请先执行: cd apps/mail-app/web && npm install && npm run build</p>')
+  }
+  const ext = path.extname(target).toLowerCase()
+  res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
+  fs.createReadStream(target).pipe(res)
+}
+
+async function handleApi(req, res, u) {
+  const { pathname } = u
+  const projects = await import('./projects.mjs')
+
   if (req.method === 'GET' && pathname === '/api/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-    res.end(JSON.stringify({
+    return sendJson(res, 200, {
       ok: true,
       service: 'mail-gateway',
       mode: isDry ? 'dry' : isMock ? 'mock' : 'live',
       email: mailConfig.email || 'assistant@test.local',
+      senderFilter: mailConfig.senderFilter || '(所有人)',
+      pollIntervalSec: (mailConfig.pollInterval || 60000) / 1000,
       monitorRunning,
       processedEmails: processedEmails.size,
       uptimeSec: Math.round((Date.now() - startedAt) / 1000),
       pid: process.pid
-    }))
+    })
+  }
+
+  if (pathname === '/api/projects' || pathname.startsWith('/api/projects/')) {
+    if (req.method === 'GET' && pathname === '/api/projects') {
+      return sendJson(res, 200, projects.listProjects())
+    }
+    if (req.method === 'POST' && pathname === '/api/projects') {
+      const body = await readJsonBody(req)
+      try {
+        projects.addProject(body.name, body.path, body.description || '')
+      } catch (e) {
+        return sendJson(res, 400, { error: e.message })
+      }
+      return sendJson(res, 200, projects.listProjects())
+    }
+    if (req.method === 'PUT' && pathname === '/api/projects/default') {
+      const body = await readJsonBody(req)
+      try {
+        projects.setDefaultProject(body.name)
+      } catch (e) {
+        return sendJson(res, 400, { error: e.message })
+      }
+      return sendJson(res, 200, projects.listProjects())
+    }
+    const delMatch = pathname.match(/^\/api\/projects\/([^/]+)$/)
+    if (req.method === 'DELETE' && delMatch) {
+      const name = decodeURIComponent(delMatch[1])
+      if (!projects.removeProject(name)) {
+        return sendJson(res, 404, { error: `未找到项目: ${name}` })
+      }
+      return sendJson(res, 200, projects.listProjects())
+    }
+    return sendJson(res, 405, { error: 'Method Not Allowed' })
+  }
+
+  if (req.method === 'GET' && pathname === '/api/logs/tail') {
+    const lines = Math.min(Math.max(parseInt(u.searchParams.get('lines') || '200', 10) || 200, 1), 1000)
+    const logFile = path.join(userData, 'logs', 'gateway.stdout.log')
+    try {
+      const content = fs.readFileSync(logFile, 'utf8')
+      return sendJson(res, 200, { file: logFile, lines, content: content.split('\n').slice(-lines).join('\n') })
+    } catch {
+      return sendJson(res, 200, { file: logFile, lines: 0, content: '', note: '日志文件不存在（可能非 launchd 启动）' })
+    }
+  }
+
+  return sendJson(res, 404, { error: 'Not Found' })
+}
+
+const healthServer = http.createServer((req, res) => {
+  const u = new URL(req.url, `http://localhost:${healthPort}`)
+  if (u.pathname.startsWith('/api/')) {
+    handleApi(req, res, u).catch(err => sendJson(res, 500, { error: err.message }))
     return
   }
-  res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
-  res.end(JSON.stringify({ error: 'Not Found' }))
+  if (req.method === 'GET') return serveStatic(res, u.pathname)
+  sendJson(res, 404, { error: 'Not Found' })
 })
 
 await new Promise((resolve) => {
@@ -356,6 +467,7 @@ await new Promise((resolve) => {
   })
   healthServer.listen(healthPort, () => {
     console.log(`[mail-gateway] 健康检查: http://localhost:${healthPort}/api/health`)
+    console.log(`[mail-gateway] 管理界面: http://localhost:${healthPort}/`)
     resolve()
   })
 })
