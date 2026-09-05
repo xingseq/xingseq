@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import SubAppManager from './components/SubAppManager.jsx'
 import AppStore from './components/AppStore.jsx'
+import Settings from './components/Settings.jsx'
 import Icon from './components/Icon.jsx'
 
 /**
@@ -17,6 +18,7 @@ import Icon from './components/Icon.jsx'
  *   - 选中某个子应用 → 先经网关按需拉起其 server，再用 <iframe> 嵌入其端口。
  *   - 选中「子应用管理」→ 渲染 SubAppManager 面板。
  *   - 选中「应用商店」→ 渲染 AppStore 面板。
+ *   - 选中「设置」→ 渲染 Settings 面板。
  *
  * 数据来源：控制台网关（electron-shell 主进程内的 http 服务）
  *   - GET  /console/api/apps             子应用清单 + 运行状态
@@ -27,6 +29,7 @@ import Icon from './components/Icon.jsx'
 
 const MANAGER_VIEW = '__manager__'
 const STORE_VIEW = '__store__'
+const SETTINGS_VIEW = '__settings__'
 const COLLAPSE_KEY = 'xingseq.console.sidebarCollapsed'
 
 // 子应用图标（按 name 匹配，缺省用通用 grid）
@@ -118,6 +121,7 @@ export default function App() {
 
   const openManager = () => { setActive(MANAGER_VIEW); setIframeSrc(''); setError(null) }
   const openStore = () => { setActive(STORE_VIEW); setIframeSrc(''); setError(null) }
+  const openSettings = () => { setActive(SETTINGS_VIEW); setIframeSrc(''); setError(null) }
 
   const uiApps = useMemo(
     () => apps.filter(a => a.ui && a.ui.enabled !== false && a.ui.port),
@@ -126,13 +130,14 @@ export default function App() {
   const runningCount = useMemo(() => apps.filter(a => a.running).length, [apps])
   const activeApp = useMemo(() => apps.find(a => a.name === active) || null, [apps, active])
 
-  const isPanel = active === MANAGER_VIEW || active === STORE_VIEW
+  const isPanel = active === MANAGER_VIEW || active === STORE_VIEW || active === SETTINGS_VIEW
   const isAppView = !!active && !isPanel
 
   // 顶栏标题：随当前视图变化
   const { title, subtitle } = useMemo(() => {
     if (active === MANAGER_VIEW) return { title: '子应用管理', subtitle: `${apps.length} 个子应用` }
     if (active === STORE_VIEW) return { title: '应用商店', subtitle: '安装、更新与商店源' }
+    if (active === SETTINGS_VIEW) return { title: '设置', subtitle: '控制台偏好、子应用自启与环境变量' }
     if (activeApp) {
       return {
         title: activeApp.displayName || activeApp.name,
@@ -185,6 +190,7 @@ export default function App() {
           <ul className="nav-list">
             {navItem(MANAGER_VIEW, 'layers', '子应用管理', openManager)}
             {navItem(STORE_VIEW, 'store', '应用商店', openStore)}
+            {navItem(SETTINGS_VIEW, 'settings', '设置', openSettings)}
           </ul>
         </nav>
 
@@ -264,6 +270,10 @@ export default function App() {
 
           {active === STORE_VIEW && (
             <AppStore onInstalled={refreshApps} toolbarEl={toolbarEl} />
+          )}
+
+          {active === SETTINGS_VIEW && (
+            <Settings apps={apps} onRefresh={refreshApps} toolbarEl={toolbarEl} />
           )}
 
           {isAppView && (

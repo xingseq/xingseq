@@ -354,6 +354,11 @@ html.vibrancy .sidebar-titlebar { padding-left: 82px; }
   border: 1px solid rgba(255, 159, 10, 0.32);
   color: #ffb340;
 }
+.banner-info {
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.32);
+  color: #8cc4ff;
+}
 
 /* === iframe 宿主 === */
 .iframe-host { flex: 1; min-height: 0; position: relative; }
@@ -678,6 +683,171 @@ html.vibrancy .sidebar-titlebar { padding-left: 82px; }
   background: rgba(255, 69, 58, 0.2);
   color: #ff7a70;
 }
+
+/* === 设置面板 === */
+.settings-section {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px 13px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.settings-section-hint {
+  margin-bottom: 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--separator);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.settings-label-port {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.settings-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  width: 320px;
+  max-width: 46%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.settings-input::placeholder { color: var(--text-muted); }
+.settings-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.22);
+}
+.settings-input-port { width: 90px; max-width: none; text-align: center; }
+
+/* macOS 风格开关 */
+.toggle {
+  width: 36px;
+  height: 21px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--fill-active);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  transition: background 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+.toggle:hover:not(:disabled) { background: var(--fill-selected); }
+.toggle.on { background: var(--green); border-color: rgba(48, 209, 88, 0.4); }
+.toggle.on:hover:not(:disabled) { background: #46dd68; }
+.toggle-knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+.toggle.on .toggle-knob { transform: translateX(15px); }
+
+/* 关于/诊断的键值行 */
+.settings-kv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--separator);
+  font-size: 12px;
+}
+.settings-kv-k {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 62px;
+}
+.settings-kv-v {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-env-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding: 2px 4px 6px;
+}
+
+/* 底部保存条：粘在面板底部 */
+.settings-savebar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-top: 4px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(14px);
+}
+.settings-savebar-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.settings-savebar-actions { display: flex; gap: 7px; }
+
+/* 小号按钮 */
+.btn-xs { height: 21px; padding: 0 9px; font-size: 11.5px; }
 
 /* 侧栏内的按钮同样不吃拖拽 */
 .nav-item { -webkit-app-region: no-drag; }

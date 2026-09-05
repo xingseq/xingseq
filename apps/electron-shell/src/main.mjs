@@ -9,7 +9,14 @@
  *      - /console/api/apps            通过 subapp-host 发现子应用 + 运行状态
  *      - /console/api/apps/:name/start 按需 spawn 子应用 server 并等待就绪
  *      - /console/api/apps/:name/stop  停止子应用 server
+ *      - /console/api/settings        控制台设置读写（console.json）
  *   2. 创建浏览器窗口加载控制台页面
+ *
+ * 设置体系（~/.xingseq/config/console.json，与 config-core 全局配置目录同体系）：
+ *   - env 键在启动时注入 process.env（shell 已有环境变量优先，与
+ *     .env.example 声明的优先级一致），spawn 的子应用自动继承；
+ *   - autoStart[name] 覆盖 manifest.autoStart，商店更新不丢配置；
+ *   - window.bounds 记忆窗口位置与尺寸。
  *
  * 架构：控制台不再固定绑定 workspace-app，而是发现 apps/ 下带
  *       sub-app-manifest.json 的所有子应用；每个子应用在自己的端口上
@@ -19,12 +26,13 @@
  *   npm start -w apps/electron-shell
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import http from 'node:http'
+import fs from 'node:fs'
 import { promises as fsp } from 'node:fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -48,7 +56,90 @@ const projectsDir = path.join(
   os.homedir(), 'Library', 'Application Support', 'xingseq', 'projects'
 )
 
-const CONSOLE_PORT = parseInt(process.env.CONSOLE_PORT || '5180', 10)
+// ── 控制台设置（console.json）────────────────────────────────────────
+// 固定于 ~/.xingseq/config/console.json（与 config-core 的全局配置目录同一体系，
+// 不受 NAJIE_USER_DATA_PATH 影响，保证壳层永远能找到自己的配置）。
+const SETTINGS_PATH = path.join(os.homedir(), '.xingseq', 'config', 'console.json')
+
+// 本包版本（读 package.json，避免硬编码）
+const pkgInfo = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
+
+// 设置页可管理的环境变量白名单（分组展示；CONSOLE_PORT 不在此列，
+// 由 general.consolePort 单独管理）
+const ENV_KEYS = {
+  network: ['HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'NO_PROXY'],
+  paths: ['NAJIE_USER_DATA_PATH', 'CHAT_APP_WORKSPACE', 'WORKSPACE_APP_PATH', 'WORKSPACE_APP_WORKSPACE']
+}
+const ENV_KEY_WHITELIST = new Set([...ENV_KEYS.network, ...ENV_KEYS.paths])
+
+const DEFAULT_SETTINGS = {
+  version: 1,
+  general: { openAtLogin: false, rememberWindow: true, consolePort: null },
+  window: null,          // { bounds: {x,y,width,height}, maximized }
+  env: {},               // 白名单键 → 值（空值不入盘）
+  autoStart: {}          // name → bool，覆盖 manifest.autoStart
+}
+
+function loadSettings() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'))
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      general: { ...DEFAULT_SETTINGS.general, ...(parsed.general || {}) },
+      window: parsed.window || null,
+      env: sanitizeEnv(parsed.env),
+      autoStart: parsed.autoStart && typeof parsed.autoStart === 'object' ? parsed.autoStart : {}
+    }
+  } catch {
+    return JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
+  }
+}
+
+/** 过滤 env 组：仅保留白名单键与非空值 */
+function sanitizeEnv(env) {
+  const clean = {}
+  if (!env || typeof env !== 'object') return clean
+  for (const [k, v] of Object.entries(env)) {
+    if (ENV_KEY_WHITELIST.has(k) && v !== '' && v != null) clean[k] = String(v)
+  }
+  return clean
+}
+
+/** 同步写盘：文件极小且写入频率低，同步写避开 quit 竞态 */
+function saveSettings() {
+  try {
+    fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true })
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
+    return { ok: true }
+  } catch (err) {
+    console.warn(`[console] 保存设置失败: ${err.message}`)
+    return { ok: false, error: err.message }
+  }
+}
+
+let settings = loadSettings()
+
+// 启动注入：shell 已有环境变量优先（与 .env.example 声明的优先级一致），
+// console.json 只填空缺；改动在下一次启动生效。
+// 记录注入集合，用于区分「文件注入生效」与「shell 环境变量原生提供」。
+const injectedEnvKeys = new Set()
+for (const [k, v] of Object.entries(settings.env)) {
+  if (!(k in process.env)) {
+    process.env[k] = v
+    injectedEnvKeys.add(k)
+  }
+}
+
+/** autoStart 生效值：壳层 override 优先，否则用 manifest 声明 */
+function effectiveAutoStart(name, manifest) {
+  if (name in settings.autoStart) return !!settings.autoStart[name]
+  return !!manifest.autoStart
+}
+
+const CONSOLE_PORT = parseInt(
+  process.env.CONSOLE_PORT || String(settings.general.consolePort || 5180), 10
+)
 
 let gatewayServer = null
 let mainWindow = null
@@ -384,7 +475,7 @@ function stopSubApp(name) {
  */
 async function autoStartSubApps() {
   for (const [name, entry] of registry) {
-    if (!entry.manifest.autoStart) continue
+    if (!effectiveAutoStart(name, entry.manifest)) continue
     try {
       const result = await startSubApp(name)
       if (result.ok) {
@@ -416,7 +507,10 @@ function listApps() {
       api: api && api.enabled !== false && api.port
         ? { enabled: true, port: api.port }
         : null,
-      running: running.has(manifest.name)
+      running: running.has(manifest.name),
+      autoStart: effectiveAutoStart(manifest.name, manifest),
+      manifestAutoStart: !!manifest.autoStart,
+      autoStartOverridden: manifest.name in settings.autoStart
     }
   })
 }
@@ -527,7 +621,7 @@ async function handleGateway(req, res) {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     })
     return res.end()
@@ -648,6 +742,130 @@ async function handleGateway(req, res) {
     }
   }
 
+  // ── 控制台设置（console.json）─────────────────────────────
+  // GET /console/api/settings — 设置 + 运行环境元信息
+  if (method === 'GET' && pathname === '/console/api/settings') {
+    let projectsDirAccessible = true
+    try { await fsp.access(projectsDir) } catch { projectsDirAccessible = false }
+    return sendJSON(res, 200, {
+      settings: {
+        ...settings,
+        // 开机自启回显真实系统状态而非文件值（外部可能已改）
+        general: { ...settings.general, openAtLogin: app.getLoginItemSettings().openAtLogin }
+      },
+      meta: {
+        configPath: SETTINGS_PATH,
+        consolePort: CONSOLE_PORT,
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+        versions: {
+          shell: pkgInfo.version || '0.0.0',
+          electron: process.versions.electron,
+          node: process.versions.node,
+          chrome: process.versions.chrome
+        },
+        projectsDir,
+        projectsDirAccessible,
+        // 各管理键的当前生效值与来源（shell 环境变量优先于文件配置）
+        envKeys: [...ENV_KEYS.network, ...ENV_KEYS.paths].map(k => ({
+          key: k,
+          value: settings.env[k] || '',
+          activeValue: process.env[k] || '',
+          // unset=未设置；file=由 console.json 注入生效；shell=由 shell 环境变量提供（优先于文件）
+          source: !process.env[k] ? 'unset' : injectedEnvKeys.has(k) ? 'file' : 'shell'
+        }))
+      }
+    })
+  }
+
+  // PUT /console/api/settings — 分组提交 { general?, env?, autoStart? }
+  if (method === 'PUT' && pathname === '/console/api/settings') {
+    const body = await readJSONBody(req)
+    const changed = []
+
+    if (body.general && typeof body.general === 'object') {
+      const g = { ...settings.general }
+      if (typeof body.general.rememberWindow === 'boolean') {
+        g.rememberWindow = body.general.rememberWindow
+      }
+      if (typeof body.general.openAtLogin === 'boolean') {
+        // 开机自启仅打包版开放（开发形态注册的是裸 Electron 二进制，登录后行为不可靠）
+        if (!app.isPackaged && body.general.openAtLogin) {
+          return sendJSON(res, 400, { ok: false, error: '开发模式下不可开启开机自启（仅打包版支持）' })
+        }
+        g.openAtLogin = body.general.openAtLogin
+        try { app.setLoginItemSettings({ openAtLogin: g.openAtLogin }) }
+        catch (err) { console.warn(`[console] 设置开机自启失败: ${err.message}`) }
+      }
+      if (body.general.consolePort !== undefined) {
+        if (body.general.consolePort === null) {
+          g.consolePort = null
+        } else {
+          const p = parseInt(body.general.consolePort, 10)
+          if (!Number.isInteger(p) || p < 1024 || p > 65535) {
+            return sendJSON(res, 400, { ok: false, error: '端口须为 1024-65535 的整数' })
+          }
+          g.consolePort = p
+        }
+      }
+      settings.general = g
+      changed.push('general')
+    }
+
+    if (body.env && typeof body.env === 'object') {
+      settings.env = sanitizeEnv(body.env)
+      changed.push('env')
+    }
+
+    if (body.autoStart && typeof body.autoStart === 'object') {
+      const clean = {}
+      for (const [name, v] of Object.entries(body.autoStart)) {
+        if (typeof v !== 'boolean') continue
+        // 与 manifest 默认一致的项不落盘，保持 override 表最小
+        const manifestDefault = !!registry.get(name)?.manifest.autoStart
+        if (v === manifestDefault) continue
+        clean[name] = v
+      }
+      settings.autoStart = clean
+      changed.push('autoStart')
+    }
+
+    const saved = saveSettings()
+    return sendJSON(res, saved.ok ? 200 : 500, {
+      ok: saved.ok,
+      error: saved.error,
+      changed,
+      // env 与端口只在启动时读，改动需重启控制台（含子应用）生效
+      needsRestart: changed.includes('env') || body.general?.consolePort !== undefined
+    })
+  }
+
+  // POST /console/api/settings/open-path — 在 Finder 中打开目录 { target: 'config'|'projects' }
+  if (method === 'POST' && pathname === '/console/api/settings/open-path') {
+    const body = await readJSONBody(req)
+    const targets = {
+      config: path.dirname(SETTINGS_PATH),
+      projects: projectsDir
+    }
+    const target = targets[body.target]
+    if (!target) return sendJSON(res, 400, { ok: false, error: `未知目标: ${body.target}` })
+    try { fs.mkdirSync(target, { recursive: true }) } catch {}
+    const errMsg = await shell.openPath(target)
+    if (errMsg) return sendJSON(res, 500, { ok: false, error: errMsg })
+    return sendJSON(res, 200, { ok: true })
+  }
+
+  // POST /console/api/settings/restart — 重启控制台（让 env/端口改动生效）
+  if (method === 'POST' && pathname === '/console/api/settings/restart') {
+    sendJSON(res, 200, { ok: true })
+    // 先让响应送达，再清理子应用并重启进程
+    setTimeout(() => {
+      cleanup()
+      app.relaunch()
+      app.exit(0)
+    }, 150)
+  }
+
   // 其余 → 静态资源
   if (method === 'GET' && !pathname.startsWith('/console/api/')) {
     return serveStatic(res, pathname)
@@ -673,10 +891,38 @@ function startGateway() {
 
 const isMac = process.platform === 'darwin'
 
+let windowBoundsTimer = null
+
+/** 记忆窗口位置与尺寸（最大化时仅记标记，普通 bounds 取 getNormalBounds） */
+function persistWindowBounds() {
+  if (!mainWindow || settings.general.rememberWindow === false) return
+  try {
+    settings.window = {
+      bounds: mainWindow.getNormalBounds(),
+      maximized: mainWindow.isMaximized()
+    }
+    saveSettings()
+  } catch {}
+}
+
+/** 恢复上次窗口位置：与最近的屏幕工作区求交，防止拔掉外接屏后窗口落在屏幕外 */
+function restoreWindowBounds() {
+  if (settings.general.rememberWindow === false) return null
+  const b = settings.window?.bounds
+  if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.width) || b.width < 500 || b.height < 300) return null
+  const wa = screen.getDisplayMatching(b).workArea
+  return {
+    x: Math.min(Math.max(b.x, wa.x - b.width + 200), wa.x + wa.width - 200),
+    y: Math.min(Math.max(b.y, wa.y - b.height + 100), wa.y + wa.height - 100),
+    width: b.width,
+    height: b.height
+  }
+}
+
 function createWindow() {
+  const saved = restoreWindowBounds()
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    ...(saved || { width: 1400, height: 900 }),
     minWidth: 960,
     minHeight: 600,
     title: 'XingSeq 控制台',
@@ -698,9 +944,24 @@ function createWindow() {
   })
 
   mainWindow.loadURL(`http://localhost:${CONSOLE_PORT}`)
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  mainWindow.once('ready-to-show', () => {
+    // 上次是最大化则先最大化再显示，避免闪一下普通尺寸
+    if (settings.general.rememberWindow !== false && settings.window?.maximized) {
+      mainWindow?.maximize()
+    }
+    mainWindow?.show()
+  })
   if (isDev) mainWindow.webContents.openDevTools()
   mainWindow.on('closed', () => { mainWindow = null })
+
+  // 窗口位置/尺寸记忆：拖动/缩放防抖落盘，关闭时立即补一次
+  const onBoundsChange = () => {
+    if (windowBoundsTimer) clearTimeout(windowBoundsTimer)
+    windowBoundsTimer = setTimeout(persistWindowBounds, 800)
+  }
+  mainWindow.on('resize', onBoundsChange)
+  mainWindow.on('move', onBoundsChange)
+  mainWindow.on('close', persistWindowBounds)
 }
 
 // 前端「在浏览器打开」：仅放行本机 http(s) 子应用地址，避免成为任意 URL 跳板
