@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import Icon from './Icon.jsx'
 
 /**
  * 应用商店面板
@@ -15,6 +17,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
  *
  * @param {object}   props
  * @param {Function} props.onInstalled 安装/更新/卸载成功后回调（用于刷新左侧子应用列表）
+ * @param {?Element} props.toolbarEl   顶栏操作区 DOM（「商店源 / 刷新」按钮 portal 到这里）
  */
 
 // 状态徽章文案
@@ -65,7 +68,7 @@ async function streamSSE(url, onEvent, signal) {
   }
 }
 
-export default function AppStore({ onInstalled }) {
+export default function AppStore({ onInstalled, toolbarEl }) {
   const [apps, setApps] = useState([])
   const [updates, setUpdates] = useState({})   // name → { localVersion, remoteVersion }
   const [loading, setLoading] = useState(false)
@@ -244,18 +247,22 @@ export default function AppStore({ onInstalled }) {
   }, [load, onInstalled])
 
   return (
-    <div className="subapp-manager">
-      <div className="subapp-header">
-        <h2>应用商店</h2>
-        <div className="store-header-actions">
-          <button className="btn-secondary" disabled={!!busy} onClick={() => setShowSources(v => !v)}>
-            {showSources ? '收起商店源' : '商店源'}
+    <div className="panel">
+      {toolbarEl && createPortal(
+        <>
+          <button
+            className={`btn btn-secondary ${showSources ? 'toggled' : ''}`}
+            disabled={!!busy}
+            onClick={() => setShowSources(v => !v)}
+          >
+            商店源
           </button>
-          <button className="btn-secondary" disabled={loading || !!busy} onClick={() => load(true)}>
-            {loading ? '加载中…' : '刷新'}
+          <button className="icon-btn" title="刷新商店" disabled={loading || !!busy} onClick={() => load(true)}>
+            {loading ? <span className="spinner spinner-sm" /> : <Icon name="refresh" size={16} />}
           </button>
-        </div>
-      </div>
+        </>,
+        toolbarEl
+      )}
 
       {showSources && (
         <div className="store-sources">
@@ -264,17 +271,17 @@ export default function AppStore({ onInstalled }) {
             <div className="store-source-row" key={src.id}>
               <span className="store-source-name">
                 {src.name}
-                {src.official && <span className="store-badge official">官方</span>}
+                {src.official && <span className="pill official">官方</span>}
               </span>
               <span className="store-source-url" title={src.url}>{src.url}</span>
               {src.official ? (
                 <span className="store-source-locked">锁定</span>
               ) : (
                 <span className="store-source-actions">
-                  <button className="btn-secondary" disabled={srcBusy} onClick={() => toggleSource(src)}>
+                  <button className="btn btn-secondary" disabled={srcBusy} onClick={() => toggleSource(src)}>
                     {src.enabled ? '禁用' : '启用'}
                   </button>
-                  <button className="btn-danger" disabled={srcBusy} onClick={() => removeSource(src)}>删除</button>
+                  <button className="btn btn-danger" disabled={srcBusy} onClick={() => removeSource(src)}>删除</button>
                 </span>
               )}
             </div>
@@ -292,7 +299,7 @@ export default function AppStore({ onInstalled }) {
               disabled={srcBusy}
               onChange={e => setSrcForm(f => ({ ...f, url: e.target.value }))}
             />
-            <button className="btn-primary" type="submit" disabled={srcBusy || !srcForm.name.trim() || !srcForm.url.trim()}>
+            <button className="btn btn-primary" type="submit" disabled={srcBusy || !srcForm.name.trim() || !srcForm.url.trim()}>
               {srcBusy ? '验证中…' : '添加'}
             </button>
           </form>
@@ -300,15 +307,23 @@ export default function AppStore({ onInstalled }) {
         </div>
       )}
 
-      {error && <div className="console-error" onClick={() => setError(null)}>{error} （点击关闭）</div>}
-
-      {sourceErrors.length > 0 && !hideSourceErrors && (
-        <div className="store-source-warning" onClick={() => setHideSourceErrors(true)}>
-          {sourceErrors.map(se => `源「${se.sourceName}」不可达：${se.error}`).join('；')}（点击关闭）
+      {error && (
+        <div className="banner banner-error" onClick={() => setError(null)}>
+          <Icon name="alert" size={15} />
+          <span>{error}</span>
+          <Icon name="close" size={14} className="banner-close" />
         </div>
       )}
 
-      <div className="subapp-grid">
+      {sourceErrors.length > 0 && !hideSourceErrors && (
+        <div className="banner banner-warning" onClick={() => setHideSourceErrors(true)}>
+          <Icon name="alert" size={15} />
+          <span>{sourceErrors.map(se => `源「${se.sourceName}」不可达：${se.error}`).join('；')}</span>
+          <Icon name="close" size={14} className="banner-close" />
+        </div>
+      )}
+
+      <div className="card-grid">
         {apps.map(app => {
           const hasUpdate = !!updates[app.name] || app.status === 'update'
           const isBusy = busy === app.name
@@ -317,22 +332,22 @@ export default function AppStore({ onInstalled }) {
           const appLogs = logs[app.name] || []
           const thirdParty = app.sourceId && app.sourceId !== 'official'
           return (
-            <div className="subapp-card" key={app.name}>
-              <div className="subapp-card-head">
-                <span className="subapp-title">{app.displayName || app.name}</span>
-                <span className={`store-badge ${badge}`}>
+            <div className="card" key={app.name}>
+              <div className="card-head">
+                <span className="card-title">{app.displayName || app.name}</span>
+                <span className={`pill ${badge}`}>
                   {hasUpdate ? '有更新' : (STATUS_LABEL[app.status] || app.status)}
                 </span>
               </div>
-              <div className="subapp-meta">
-                <span>name: {app.name}</span>
+              <div className="card-meta">
+                <span className="mono">{app.name}</span>
                 {app.sourceId && (
-                  <span className={`store-badge ${thirdParty ? 'third-party' : 'official'}`}>
+                  <span className={`pill ${thirdParty ? 'third-party' : 'official'}`}>
                     {thirdParty ? (app.sourceName || '第三方') : '官方'}
                   </span>
                 )}
-                {app.repo && <span className="store-repo" title={app.repo}>{app.repo.replace('https://github.com/', '')}</span>}
-                {app.localVersion && <span>v{app.localVersion}</span>}
+                {app.repo && <span className="store-repo mono" title={app.repo}>{app.repo.replace('https://github.com/', '')}</span>}
+                {app.localVersion && <span className="mono">v{app.localVersion}</span>}
               </div>
 
               {appLogs.length > 0 && (
@@ -352,19 +367,19 @@ export default function AppStore({ onInstalled }) {
                 </div>
               )}
 
-              <div className="subapp-actions">
+              <div className="card-actions">
                 {!installed && (
-                  <button className="btn-primary" disabled={isBusy} onClick={() => runInstall(app, 'install')}>
+                  <button className="btn btn-primary" disabled={isBusy} onClick={() => runInstall(app, 'install')}>
                     {isBusy ? '安装中…' : '安装'}
                   </button>
                 )}
                 {installed && hasUpdate && (
-                  <button className="btn-primary" disabled={isBusy} onClick={() => runInstall(app, 'update')}>
+                  <button className="btn btn-primary" disabled={isBusy} onClick={() => runInstall(app, 'update')}>
                     {isBusy ? '更新中…' : '更新'}
                   </button>
                 )}
                 {installed && (
-                  <button className="btn-danger" disabled={isBusy} onClick={() => uninstall(app)}>
+                  <button className="btn btn-danger" disabled={isBusy} onClick={() => uninstall(app)}>
                     {isBusy ? '处理中…' : '卸载'}
                   </button>
                 )}
@@ -373,7 +388,7 @@ export default function AppStore({ onInstalled }) {
           )
         })}
         {apps.length === 0 && !loading && (
-          <div className="subapp-empty">应用商店为空（远程注册中心不可达或未配置）</div>
+          <div className="empty-note">应用商店为空（远程注册中心不可达或未配置）</div>
         )}
       </div>
     </div>

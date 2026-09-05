@@ -19,7 +19,7 @@
  *   npm start -w apps/electron-shell
  */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -671,6 +671,8 @@ function startGateway() {
   })
 }
 
+const isMac = process.platform === 'darwin'
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -678,6 +680,15 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     title: 'XingSeq 控制台',
+    // 先隐藏，等首屏渲染完再显示，避免白底闪一下
+    show: false,
+    // macOS：隐藏系统标题栏、红绿灯内嵌到侧栏顶部，标题栏由前端自绘
+    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    trafficLightPosition: isMac ? { x: 18, y: 18 } : undefined,
+    // 侧栏毛玻璃：窗口底色须透明，vibrancy 才能透出桌面模糊
+    ...(isMac
+      ? { vibrancy: 'sidebar', visualEffectState: 'active', backgroundColor: '#00000000' }
+      : { backgroundColor: '#1e1e20' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -687,9 +698,25 @@ function createWindow() {
   })
 
   mainWindow.loadURL(`http://localhost:${CONSOLE_PORT}`)
+  mainWindow.once('ready-to-show', () => mainWindow?.show())
   if (isDev) mainWindow.webContents.openDevTools()
   mainWindow.on('closed', () => { mainWindow = null })
 }
+
+// 前端「在浏览器打开」：仅放行本机 http(s) 子应用地址，避免成为任意 URL 跳板
+ipcMain.handle('console:open-external', async (_event, url) => {
+  try {
+    const u = new URL(String(url))
+    const localHosts = ['localhost', '127.0.0.1', '::1']
+    if (!['http:', 'https:'].includes(u.protocol) || !localHosts.includes(u.hostname)) {
+      return { ok: false, error: '仅允许打开本机子应用地址' }
+    }
+    await shell.openExternal(u.toString())
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
 
 app.whenReady().then(async () => {
   try {
