@@ -95,6 +95,40 @@ function saveState() {
 
 loadState()
 
+// ===== 5.5 日志轮转（launchd StandardOutPath 只增不减，按大小滚动防止无限膨胀）=====
+// launchd 以 O_APPEND 打开日志文件并持有 fd：重命名会让它继续写入旧 inode，
+// 因此采用「复制到 .1 → 截断 live 到 0」——O_APPEND 下截断后下次写入自动落到新 EOF(0)，
+// 与 launchd 持有的 fd 兼容。单文件超过 LOG_MAX_BYTES 触发，归档保留 LOG_KEEP 份。
+const logsDir = path.join(userData, 'logs')
+const LOG_MAX_BYTES = parseInt(process.env.MAIL_LOG_MAX_BYTES || String(5 * 1024 * 1024), 10)
+const LOG_KEEP = parseInt(process.env.MAIL_LOG_KEEP || '3', 10)
+const ROTATE_CHECK_MS = 10 * 60 * 1000
+
+function rotateOneLog(baseName) {
+  const live = path.join(logsDir, baseName)
+  try {
+    if (!fs.existsSync(live)) return
+    const size = fs.statSync(live).size
+    if (size < LOG_MAX_BYTES) return
+    const oldest = `${live}.${LOG_KEEP}`
+    if (fs.existsSync(oldest)) fs.rmSync(oldest)
+    for (let i = LOG_KEEP - 1; i >= 1; i--) {
+      const from = `${live}.${i}`
+      if (fs.existsSync(from)) fs.renameSync(from, `${live}.${i + 1}`)
+    }
+    fs.copyFileSync(live, `${live}.1`)
+    fs.truncateSync(live, 0)
+    console.log(`[mail-gateway] 日志轮转: ${baseName} ${(size / 1024 / 1024).toFixed(1)}MB → ${baseName}.1`)
+  } catch (err) {
+    console.warn(`[mail-gateway] 日志轮转失败(${baseName}): ${err.message}`)
+  }
+}
+
+function rotateLogs() {
+  rotateOneLog('gateway.stdout.log')
+  rotateOneLog('gateway.stderr.log')
+}
+
 // ===== 6. (已移除 mockExecutor，dry 模式改走 chat-app CLI --once 不加 --live) =====
 
 // ===== 7. 创建邮件监听器 =====
@@ -330,6 +364,7 @@ if (isOnce) {
 const healthPort = parseInt(process.env.MAIL_GATEWAY_PORT || '7830', 10)
 const startedAt = Date.now()
 let monitorRunning = false
+let monitor = null   // 监听器实例（启动阶段赋值），供 /api/health 读取真实 IMAP 连接态
 
 const webDistDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'dist')
 
@@ -385,6 +420,13 @@ async function handleApi(req, res, u) {
   const projects = await import('./projects.mjs')
 
   if (req.method === 'GET' && pathname === '/api/health') {
+    // monitorRunning 仅表示 start() 调用过，无法反映 IMAP 真实连接态。
+    // 额外读取监听器状态：live 模式下 imapState==='authenticated' 才算真正在线，
+    // 避免网关「假死」（进程存活但 IMAP 断开）时健康检查仍报一切正常。
+    // 注意：ok 字段仍表示「本端口有进程在服务」（electron-shell 复用协议依赖它），不与 IMAP 态绑定。
+    const status = (monitor && typeof monitor.getStatus === 'function') ? monitor.getStatus() : null
+    const imapState = status ? status.imapState : 'not-started'
+    const imapConnected = (isDry || isMock) ? monitorRunning : imapState === 'authenticated'
     return sendJson(res, 200, {
       ok: true,
       service: 'mail-gateway',
@@ -393,6 +435,8 @@ async function handleApi(req, res, u) {
       senderFilter: mailConfig.senderFilter || '(所有人)',
       pollIntervalSec: (mailConfig.pollInterval || 60000) / 1000,
       monitorRunning,
+      imapConnected,
+      imapState,
       processedEmails: processedEmails.size,
       uptimeSec: Math.round((Date.now() - startedAt) / 1000),
       pid: process.pid
@@ -473,11 +517,14 @@ await new Promise((resolve) => {
 })
 
 // ===== 11. 启动邮件网关 =====
+// 启动即轮转日志（清理上次遗留的超大日志），之后每 10 分钟检查一次
+rotateLogs()
+setInterval(rotateLogs, ROTATE_CHECK_MS).unref()
 console.log('═══════════════════════════════════════════')
 console.log('  星序邮件网关 (MailGateway)')
 console.log('═══════════════════════════════════════════')
 
-const monitor = createMailMonitor()
+monitor = createMailMonitor()
 if (monitor.ready) await monitor.ready()  // EmailMonitor 需等待依赖检查完成
 
 if (monitor.dependenciesAvailable === false) {

@@ -76,6 +76,15 @@ tail -f ~/.xingseq/mail-app/logs/gateway.stdout.log
 tail -f ~/.xingseq/mail-app/logs/gateway.stderr.log
 ```
 
+### 日志轮转
+
+网关自身按大小轮转日志（launchd 的 `StandardOutPath` 只增不减）：单个日志超过 **5MB** 时，复制为 `.1` 归档并把活动文件截断为 0，最多保留 **3** 份归档（`.1`/`.2`/`.3`）；启动时和每 10 分钟各检查一次。
+
+- 归档文件：`gateway.stdout.log.1`、`gateway.stderr.log.1` …
+- 可调环境变量：`MAIL_LOG_MAX_BYTES`（默认 5242880）、`MAIL_LOG_KEEP`（默认 3）
+
+> 采用「复制→截断」而非「重命名」：launchd 以 `O_APPEND` 持有日志 fd，重命名会让它继续写入旧 inode；截断则让后续写入自动落到新文件头，无需重启服务。
+
 ### 停止服务
 
 ```bash

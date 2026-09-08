@@ -100,13 +100,18 @@ export default function App() {
   }
 
   const monitorOk = health?.monitorRunning
+  const imapOk = health?.imapConnected
+  // 进程存活但 IMAP 未连接 = 「假死」：健康检查曾误报正常，这里显式区分三态
+  const zombie = monitorOk && !imapOk
+  const chipClass = (monitorOk && imapOk) ? 'ok' : zombie ? 'warn' : 'bad'
+  const chipText = (monitorOk && imapOk) ? '监听运行中' : zombie ? '进程存活·邮箱未连接' : '监听已停止'
 
   return (
     <div className="app">
       <header className="header">
         <h1>📧 邮件网关管理</h1>
-        <div className={`status-chip ${monitorOk ? 'ok' : 'bad'}`}>
-          {monitorOk ? '监听运行中' : '监听已停止'}
+        <div className={`status-chip ${chipClass}`}>
+          {chipText}
         </div>
       </header>
 
@@ -119,6 +124,14 @@ export default function App() {
           {health ? (
             <ul className="kv-list">
               <li><span>模式</span><b>{MODE_LABEL[health.mode] || health.mode}</b></li>
+              <li>
+                <span>邮箱连接</span>
+                <b className={imapOk ? 'text-ok' : 'text-bad'}>
+                  {health.mode === 'live'
+                    ? (imapOk ? '已连接' : `未连接（${health.imapState}）`)
+                    : '虚拟邮箱'}
+                </b>
+              </li>
               <li><span>监听邮箱</span><b>{health.email}</b></li>
               <li><span>接受发件人</span><b>{health.senderFilter}</b></li>
               <li><span>轮询间隔</span><b>{health.pollIntervalSec} 秒</b></li>
