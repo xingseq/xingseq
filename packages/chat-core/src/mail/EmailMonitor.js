@@ -209,10 +209,14 @@ export class EmailMonitor extends EventEmitter {
     if (this.reconnecting) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      // 冷却等待期内已有重置计时器在跑时直接返回：轮询（pollInterval，默认 60s）会持续
+      // 调用本方法，若每次都 clearTimeout 再重新计时，5 分钟冷却永远走不完，reconnectAttempts
+      // 无法归零、reconnect() 永不再触发 —— 网关会永久卡死在「达到最大重连次数」循环里，
+      // 即使网络早已恢复也无法自愈（实测运行 9.8 天，重置回调 0 次触发）。
+      if (this.reconnectResetTimer) return
+
       console.warn(`[EmailMonitor] 达到最大重连次数 (${this.maxReconnectAttempts})，${this.reconnectResetDelay / 1000 / 60} 分钟后重试`)
       this.emit('error', new Error('达到最大重连次数，将稍后重试'))
-
-      if (this.reconnectResetTimer) clearTimeout(this.reconnectResetTimer)
 
       this.reconnectResetTimer = setTimeout(() => {
         console.log('[EmailMonitor] 重连计数器重置，继续尝试...')
