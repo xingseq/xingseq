@@ -239,20 +239,43 @@ async function handleEmail(email, monitor) {
     // mock/live 模式: live=true（chat-app CLI 用真实 LLM）
     const conversationId = getConversationId(email.from)
     const chatMode = mailConfig.chatMode || 'cli'
+    const timeoutMs = Math.max(1, Number(mailConfig.chatTimeoutMin) || 60) * 60 * 1000
+    const ackDelayMs = (Number(mailConfig.ackDelaySec) || 0) * 1000
 
-    console.log(`   💬 会话: ${conversationId}  模式: ${chatMode}  live: ${!isDry}`)
+    console.log(`   💬 会话: ${conversationId}  模式: ${chatMode}  live: ${!isDry}  超时: ${Math.round(timeoutMs / 60000)}min  ack: ${ackDelayMs > 0 ? ackDelayMs / 1000 + 's' : '关闭'}`)
 
-    const chatResult = await chatWithAssistant({
+    // 延迟 ack：起 chat promise 的同时挂一个定时器，超过 ackDelayMs 仍未完成就先回一封
+    // 「正在处理」，跑完再发结果。快邮件在阈值内完成 → 只发一封正常回信，无噪音。
+    let done = false
+    let ackSent = false
+    let ackTimer = null
+    const chatPromise = chatWithAssistant({
       message: content,
       conversationId,
       workspace: 'mail-gateway',
       mode: chatMode,
       live: !isDry,
+      timeoutMs,
       sseConfig: {
         host: mailConfig.chatHost || 'localhost',
         port: mailConfig.chatPort || 3001
       }
     })
+    if (ackDelayMs > 0) {
+      ackTimer = setTimeout(async () => {
+        if (done) return
+        ackSent = true
+        console.log('   ⏳ 处理超过阈值，先发送「正在处理」回执')
+        await replySend(
+          monitor, email.from, `Re: ${email.subject}`,
+          '已收到你的邮件，正在处理中，完成后会单独发送结果。\n\n---\n星序 AI 助手'
+        ).catch(() => {})
+      }, ackDelayMs)
+      ackTimer.unref?.()
+    }
+    const chatResult = await chatPromise
+    done = true
+    if (ackTimer) clearTimeout(ackTimer)
 
     // 打印工具调用日志
     if (chatResult.toolCalls?.length) {
@@ -273,19 +296,25 @@ async function handleEmail(email, monitor) {
     const result = {
       success: chatResult.success,
       fullContent: chatResult.reply,
+      timedOut: Boolean(chatResult.timedOut),
       error: chatResult.error ? { message: chatResult.error } : null
     }
 
+    // ack 已发出时，结果用带「（处理结果）」的主题，避免和 ack 撞在一起看不清
+    const replySubject = ackSent ? `Re: ${email.subject}（处理结果）` : `Re: ${email.subject}`
+
     if (!result.success) {
       console.error(`[mail-gateway] AI 处理失败: ${result.error?.message || '未知'}`)
-      const errBody = `处理您的邮件时出现错误：\n\n${result.error?.message || '未知错误'}\n\n请稍后重试。\n\n---\n星序 AI 助手`
-      await replySend(monitor, email.from, `Re: ${email.subject}`, errBody)
+      const errBody = result.timedOut
+        ? `处理您的邮件超时（${result.error?.message || '已超过时限被中止'}）。\n\n请简化需求或稍后重试。\n\n---\n星序 AI 助手`
+        : `处理您的邮件时出现错误：\n\n${result.error?.message || '未知错误'}\n\n请稍后重试。\n\n---\n星序 AI 助手`
+      await replySend(monitor, email.from, replySubject, errBody)
       return
     }
 
     // 框架层自动回复
     const replyBody = result.fullContent || '(空回复)'
-    const replyResult = await replySend(monitor, email.from, `Re: ${email.subject}`, replyBody)
+    const replyResult = await replySend(monitor, email.from, replySubject, replyBody)
 
     if (replyResult.success) {
       console.log(`\u2705 \u56de\u590d\u5df2\u53d1\u9001 \u2192 ${email.from}  messageId: ${replyResult.messageId || 'N/A'}`)

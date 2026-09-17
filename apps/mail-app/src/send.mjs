@@ -44,6 +44,14 @@ export function loadMailConfig() {
     senderFilter: fileConfig.senderFilter || env.EMAIL_SENDER_FILTER || '',
     subjectKeywords: fileConfig.subjectKeywords || [],
     pollInterval: Number(fileConfig.pollInterval || env.EMAIL_POLL_INTERVAL || 60000),
+    // chat-app 调用方式（此前 gateway 读了这些字段但 loadMailConfig 未返回，恒为默认值）
+    chatMode: fileConfig.chatMode || env.MAIL_CHAT_MODE || 'cli',
+    chatHost: fileConfig.chatHost || env.MAIL_CHAT_HOST || 'localhost',
+    chatPort: Number(fileConfig.chatPort || env.MAIL_CHAT_PORT || 3001),
+    // 异步 ack：超过 ackDelaySec 秒仍未处理完，先发「正在处理」回执，跑完再发结果
+    ackDelaySec: Number(fileConfig.ackDelaySec ?? env.MAIL_ACK_DELAY_SEC ?? 30),
+    // CLI 单次处理硬超时（分钟），需覆盖 qoder_task 多轮调用的最坏情况
+    chatTimeoutMin: Number(fileConfig.chatTimeoutMin ?? env.MAIL_CHAT_TIMEOUT_MIN ?? 60),
     imap: {
       host: fileConfig.imap?.host || env.EMAIL_IMAP_HOST || 'imap.qq.com',
       port: Number(fileConfig.imap?.port || env.EMAIL_IMAP_PORT || 993),

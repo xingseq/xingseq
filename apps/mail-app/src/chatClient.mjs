@@ -26,9 +26,10 @@ const CHAT_APP_CLI = path.resolve(__dirname, '../../chat-app/src/cli.mjs')
  * @param {string} [opts.conversationId] - 会话 ID（用于记忆续接）
  * @param {string} [opts.workspace] - workspace 名称
  * @param {boolean} [opts.live=true] - 是否用真实 LLM
- * @returns {Promise<{success, reply, conversationId, toolCalls, toolResults, error}>}
+ * @param {number} [opts.timeoutMs=3600000] - 子进程硬超时（毫秒），到点 SIGTERM 杀掉
+ * @returns {Promise<{success, reply, conversationId, toolCalls, toolResults, error, timedOut}>}
  */
-export function chatViaCli({ message, conversationId, workspace, live = true }) {
+export function chatViaCli({ message, conversationId, workspace, live = true, timeoutMs = 60 * 60 * 1000 }) {
   const args = ['--once', '--json']
   if (live) args.push('--live')
   if (conversationId) args.push('--resume', conversationId)
@@ -38,8 +39,8 @@ export function chatViaCli({ message, conversationId, workspace, live = true }) 
   return new Promise((resolve) => {
     execFile('node', [CHAT_APP_CLI, ...args], {
       maxBuffer: 10 * 1024 * 1024,
-      // 邮件场景异步无怨言；需覆盖 qoder_task（Qoder CLI headless）最长 10 分钟的执行时间
-      timeout: 15 * 60 * 1000,
+      // 邮件场景异步无怨言；需覆盖 qoder_task（Qoder CLI headless）多轮调用的最长执行时间
+      timeout: timeoutMs,
       cwd: path.resolve(__dirname, '../..')
     }, (err, stdout, stderr) => {
       if (err) {
@@ -49,10 +50,16 @@ export function chatViaCli({ message, conversationId, workspace, live = true }) 
           resolve(jsonResult)
           return
         }
+        // 超时被杀：execFile 到点会 SIGTERM 子进程，此时 err.killed=true / err.signal='SIGTERM'，
+        // 且 stdout 无那行结果 JSON。与「代码抛异常崩溃」区分开，给用户人话而非 Command failed。
+        const timedOut = Boolean(err.killed) || err.signal === 'SIGTERM'
         resolve({
           success: false,
           reply: '',
-          error: `chat-app CLI 失败: ${err.message}`,
+          error: timedOut
+            ? `chat-app 处理超时（超过 ${Math.round(timeoutMs / 60000)} 分钟被中止）`
+            : `chat-app CLI 失败: ${err.message}`,
+          timedOut,
           stderr: stderr?.slice(0, 500)
         })
         return
@@ -209,6 +216,7 @@ export function chatViaSse({
  * @param {'cli'|'sse'} [opts.mode='cli'] - 调用模式
  * @param {boolean} [opts.live=true] - CLI 模式下是否用真实 LLM
  * @param {object} [opts.sseConfig] - SSE 模式配置 { host, port }
+ * @param {number} [opts.timeoutMs] - CLI 模式硬超时（毫秒）
  * @returns {Promise<{success, reply, conversationId, toolCalls, toolResults, error}>}
  */
 export async function chatWithAssistant({
@@ -217,12 +225,13 @@ export async function chatWithAssistant({
   workspace,
   mode = 'cli',
   live = true,
-  sseConfig = {}
+  sseConfig = {},
+  timeoutMs
 }) {
   if (mode === 'sse') {
     return chatViaSse({ message, conversationId, workspace, ...sseConfig })
   }
-  return chatViaCli({ message, conversationId, workspace, live })
+  return chatViaCli({ message, conversationId, workspace, live, ...(timeoutMs ? { timeoutMs } : {}) })
 }
 
 /**
