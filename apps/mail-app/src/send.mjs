@@ -74,6 +74,69 @@ export function loadMailConfig() {
 }
 
 /**
+ * 保存邮件配置（合并写入，保留未提供的字段）
+ *
+ * - 始终以新路径 CONFIG_FILE 落盘（若旧配置在 LEGACY 路径，保存即迁移到新路径）
+ * - 文件权限锁 0600（仅本用户可读写），授权码明文存储，与项目现有 config-core
+ *   存 API Key 的姿态一致；GUI 层负责「只写不回显」
+ * - password 为空/缺省时保留原有授权码不动；非空时同步写入 imap/smtp 的 auth.pass，
+ *   并把 auth.user 对齐到 email
+ *
+ * @param {object} patch 归一化补丁：email/senderFilter/pollInterval/subjectKeywords/
+ *                       imapHost/imapPort/smtpHost/smtpPort/password
+ * @returns {{success: boolean, path: string}}
+ */
+export function saveMailConfig(patch = {}) {
+  const configPath = fs.existsSync(CONFIG_FILE) ? CONFIG_FILE
+    : fs.existsSync(LEGACY_CONFIG_FILE) ? LEGACY_CONFIG_FILE
+    : CONFIG_FILE
+
+  let current = {}
+  if (fs.existsSync(configPath)) {
+    try {
+      current = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    } catch (err) {
+      console.warn(`[mail-app] 现有配置解析失败，将重建 (${configPath}): ${err.message}`)
+    }
+  }
+
+  const next = { ...current }
+
+  // 顶层非敏感字段（仅覆盖显式提供的）
+  if (patch.email !== undefined) next.email = String(patch.email).trim()
+  if (patch.senderFilter !== undefined) next.senderFilter = String(patch.senderFilter).trim()
+  if (patch.pollInterval !== undefined) next.pollInterval = Number(patch.pollInterval) || 60000
+  if (patch.subjectKeywords !== undefined) next.subjectKeywords = patch.subjectKeywords
+
+  // IMAP / SMTP host、port（保留原 auth）
+  next.imap = { ...(current.imap || {}) }
+  next.smtp = { ...(current.smtp || {}) }
+  if (patch.imapHost !== undefined) next.imap.host = String(patch.imapHost).trim()
+  if (patch.imapPort !== undefined) next.imap.port = Number(patch.imapPort) || 993
+  if (patch.smtpHost !== undefined) next.smtp.host = String(patch.smtpHost).trim()
+  if (patch.smtpPort !== undefined) next.smtp.port = Number(patch.smtpPort) || 465
+
+  // 授权码：非空才写；同步 imap/smtp，并把 auth.user 对齐 email
+  const password = patch.password
+  if (password !== undefined && password !== null && String(password) !== '') {
+    const user = next.email || current.imap?.auth?.user || current.smtp?.auth?.user || ''
+    next.imap.auth = { ...(current.imap?.auth || {}), user, pass: String(password) }
+    next.smtp.auth = { ...(current.smtp?.auth || {}), user, pass: String(password) }
+  } else if (next.email) {
+    // 未改密码，但 email 变了：确保 auth.user 有值（原值为空时回落到 email）
+    if (next.imap.auth) next.imap.auth = { ...next.imap.auth, user: next.imap.auth.user || next.email }
+    if (next.smtp.auth) next.smtp.auth = { ...next.smtp.auth, user: next.smtp.auth.user || next.email }
+  }
+
+  fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true })
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2), { mode: 0o600 })
+  // writeFileSync 的 mode 仅对新建文件生效，已存在文件需显式收紧权限
+  try { fs.chmodSync(CONFIG_FILE, 0o600) } catch {}
+
+  return { success: true, path: CONFIG_FILE }
+}
+
+/**
  * 发送一封邮件（轻量 SMTP 发送，不依赖 EmailMonitor）
  *
  * @param {object} opts

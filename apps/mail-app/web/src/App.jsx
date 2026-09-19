@@ -2,6 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 const MODE_LABEL = { live: '真实邮箱', mock: '虚拟邮箱', dry: '离线测试' }
 
+const EMPTY_CFG_FORM = {
+  email: '', senderFilter: '', pollInterval: 60000,
+  imapHost: '', imapPort: 993, smtpHost: '', smtpPort: 465, password: ''
+}
+
 function fmtUptime(sec) {
   if (sec == null) return '-'
   const d = Math.floor(sec / 86400)
@@ -28,6 +33,10 @@ export default function App() {
   const [form, setForm] = useState({ name: '', path: '', description: '' })
   const [logs, setLogs] = useState({ content: '', file: '' })
   const [autoLog, setAutoLog] = useState(true)
+  const [cfgForm, setCfgForm] = useState(EMPTY_CFG_FORM)
+  const [cfgInfo, setCfgInfo] = useState(null)   // { passwordSet, configPath }
+  const [cfgMsg, setCfgMsg] = useState('')
+  const [saving, setSaving] = useState(false)
   const logRef = useRef(null)
 
   const showError = (e) => { setError(e.message || String(e)) }
@@ -48,14 +57,32 @@ export default function App() {
     api('/api/logs/tail?lines=200').then(setLogs).catch(() => {})
   }, [])
 
+  // 邮箱配置：只拉取非敏感字段（后端永不回传密码），保留用户已输入未保存的密码
+  const refreshConfig = useCallback(() => {
+    api('/api/mail-config').then(d => {
+      setCfgInfo({ passwordSet: d.passwordSet, configPath: d.configPath })
+      setCfgForm(f => ({
+        email: d.email || '',
+        senderFilter: d.senderFilter || '',
+        pollInterval: d.pollInterval || 60000,
+        imapHost: d.imapHost || '',
+        imapPort: d.imapPort || 993,
+        smtpHost: d.smtpHost || '',
+        smtpPort: d.smtpPort || 465,
+        password: f.password || ''
+      }))
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     refreshHealth()
     refreshProjects()
     refreshLogs()
+    refreshConfig()
     const t1 = setInterval(refreshHealth, 5000)
     const t3 = setInterval(() => { if (autoLog) refreshLogs() }, 10000)
     return () => { clearInterval(t1); clearInterval(t3) }
-  }, [refreshHealth, refreshProjects, refreshLogs, autoLog])
+  }, [refreshHealth, refreshProjects, refreshLogs, refreshConfig, autoLog])
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -97,6 +124,33 @@ export default function App() {
       setProjects(d.projects)
       setDefaultProject(d.defaultProject)
     } catch (err) { showError(err) }
+  }
+
+  const saveConfig = async (e) => {
+    e.preventDefault()
+    setError(''); setCfgMsg('')
+    setSaving(true)
+    try {
+      const payload = {
+        email: cfgForm.email,
+        senderFilter: cfgForm.senderFilter,
+        pollInterval: cfgForm.pollInterval,
+        imapHost: cfgForm.imapHost,
+        imapPort: cfgForm.imapPort,
+        smtpHost: cfgForm.smtpHost,
+        smtpPort: cfgForm.smtpPort
+      }
+      if (cfgForm.password) payload.password = cfgForm.password
+      const d = await api('/api/mail-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      setCfgForm(f => ({ ...f, password: '' }))
+      setCfgMsg(d.deferred ? '已保存，将在当前邮件处理完后生效' : '已保存并热重载生效 ✓')
+      refreshHealth(); refreshConfig()
+    } catch (err) { showError(err) }
+    finally { setSaving(false) }
   }
 
   const monitorOk = health?.monitorRunning
@@ -202,6 +256,78 @@ export default function App() {
           {configPath && <p className="muted small">配置文件：{configPath}（即改即生效，无需重启）</p>}
         </section>
       </main>
+
+      {/* === 邮箱配置卡片 === */}
+      <section className="card config-card">
+        <h2>
+          邮箱配置
+          <span className="muted small">（保存即热重载生效，无需重启网关）</span>
+        </h2>
+        {cfgMsg && <div className="cfg-msg" onClick={() => setCfgMsg('')}>{cfgMsg}（点击关闭）</div>}
+        <form className="cfg-form" onSubmit={saveConfig}>
+          <label className="cfg-field span2">
+            <span>监听邮箱</span>
+            <input
+              type="email" value={cfgForm.email} required placeholder="assistant@qq.com"
+              onChange={e => setCfgForm({ ...cfgForm, email: e.target.value.trim() })}
+            />
+          </label>
+          <label className="cfg-field span2">
+            <span>邮箱授权码 / 密码</span>
+            <input
+              type="password" value={cfgForm.password} autoComplete="new-password"
+              placeholder={cfgInfo?.passwordSet ? '已配置 ✓（留空则不修改）' : '请填写 IMAP/SMTP 授权码'}
+              onChange={e => setCfgForm({ ...cfgForm, password: e.target.value })}
+            />
+          </label>
+          <label className="cfg-field span2">
+            <span>接受发件人（精确匹配，留空 = 所有人）</span>
+            <input
+              type="text" value={cfgForm.senderFilter} placeholder="boss@example.com"
+              onChange={e => setCfgForm({ ...cfgForm, senderFilter: e.target.value.trim() })}
+            />
+          </label>
+          <label className="cfg-field">
+            <span>轮询间隔（秒）</span>
+            <input
+              type="number" min="1" value={Math.round(cfgForm.pollInterval / 1000)}
+              onChange={e => setCfgForm({ ...cfgForm, pollInterval: (Number(e.target.value) || 0) * 1000 })}
+            />
+          </label>
+          <div className="cfg-field">
+            <span>IMAP（收信）</span>
+            <div className="cfg-row">
+              <input
+                className="cfg-host" type="text" value={cfgForm.imapHost} placeholder="imap.qq.com"
+                onChange={e => setCfgForm({ ...cfgForm, imapHost: e.target.value.trim() })}
+              />
+              <input
+                className="cfg-port" type="number" min="1" max="65535" value={cfgForm.imapPort}
+                onChange={e => setCfgForm({ ...cfgForm, imapPort: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          <div className="cfg-field">
+            <span>SMTP（发信）</span>
+            <div className="cfg-row">
+              <input
+                className="cfg-host" type="text" value={cfgForm.smtpHost} placeholder="smtp.qq.com"
+                onChange={e => setCfgForm({ ...cfgForm, smtpHost: e.target.value.trim() })}
+              />
+              <input
+                className="cfg-port" type="number" min="1" max="65535" value={cfgForm.smtpPort}
+                onChange={e => setCfgForm({ ...cfgForm, smtpPort: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          <div className="cfg-actions span2">
+            <button type="submit" className="btn primary" disabled={saving}>{saving ? '保存中…' : '保存并生效'}</button>
+          </div>
+        </form>
+        <p className="muted small">
+          配置写入 {cfgInfo?.configPath || '~/.xingseq/mail-app/config/mail.json'}（权限 0600）。授权码只写入、不回显。
+        </p>
+      </section>
 
       {/* === 日志卡片 === */}
       <section className="card log-card">

@@ -48,7 +48,7 @@ const {
   MockEmailMonitor,
   VirtualMailboxStore
 } = await import('@xingseq/chat-core')
-const { loadMailConfig, sendEmail } = await import('./send.mjs')
+const { loadMailConfig, saveMailConfig, sendEmail } = await import('./send.mjs')
 const { chatWithAssistant, getConversationId } = await import('./chatClient.mjs')
 
 // ===== 3. 解析参数 =====
@@ -60,7 +60,8 @@ const isOnce = args.includes('--once')
 const onceMessage = args.filter(a => !a.startsWith('--')).join(' ').trim()
 
 // ===== 4. 加载邮件配置 =====
-const mailConfig = loadMailConfig()
+// let：GUI 保存配置后需重新赋值以热重载（见 applyConfig）
+let mailConfig = loadMailConfig()
 
 // ===== 5. 状态持久化（去重：不重复处理已处理邮件） =====
 const stateDir = path.join(userData, 'state')
@@ -170,6 +171,41 @@ function createMailMonitor() {
 
 // ===== 9. 邮件 → 对话 → 回复 =====
 
+// 热重载守卫：正在处理邮件时不重建监听器，避免中断在飞的回复；
+// 保存的配置会挂起，待当前邮件处理完（handleEmail 的 finally）再生效。
+let isBusy = false
+let pendingReload = false
+
+function applyConfig() {
+  if (isBusy) {
+    pendingReload = true
+    console.log('[mail-gateway] 配置已保存，将在当前邮件处理完后热重载生效')
+    return { deferred: true }
+  }
+  mailConfig = loadMailConfig()
+  try { monitor?.stop?.() } catch (err) {
+    console.warn(`[mail-gateway] 热重载停止旧监听器失败: ${err.message}`)
+  }
+  monitor = createMailMonitor()
+  monitorRunning = false
+  ;(async () => {
+    if (monitor.ready) await monitor.ready()
+    await monitor.start()
+    monitorRunning = true
+    console.log(`[mail-gateway] 配置热重载完成，监听: ${mailConfig.email || '(未设置)'}  发件人: ${mailConfig.senderFilter || '(所有人)'}`)
+  })().catch(err => {
+    console.error(`[mail-gateway] 热重载启动监听器失败: ${err.message}`)
+  })
+  return { deferred: false }
+}
+
+function drainPendingReload() {
+  if (pendingReload && !isBusy) {
+    pendingReload = false
+    applyConfig()
+  }
+}
+
 // 统一回复发送：dry/mock 走 monitor，live 走真实 SMTP
 async function replySend(monitor, to, subject, body) {
   if (isDry || isMock) {
@@ -231,6 +267,7 @@ async function handleEmail(email, monitor) {
 
   const content = formatEmailContent(email)
 
+  isBusy = true
   try {
     console.log('🤖 交给 AI 处理...')
 
@@ -333,6 +370,9 @@ async function handleEmail(email, monitor) {
       processedEmails.delete(emailId)
       saveState()
     }
+  } finally {
+    isBusy = false
+    drainPendingReload()
   }
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 }
@@ -470,6 +510,64 @@ async function handleApi(req, res, u) {
       uptimeSec: Math.round((Date.now() - startedAt) / 1000),
       pid: process.pid
     })
+  }
+
+  if (pathname === '/api/mail-config') {
+    const configFile = path.join(userData, 'config', 'mail.json')
+    // GET：只返回非敏感字段 + 「授权码是否已配置」标记，永不回传密码明文
+    if (req.method === 'GET') {
+      return sendJson(res, 200, {
+        email: mailConfig.email || '',
+        senderFilter: mailConfig.senderFilter || '',
+        pollInterval: mailConfig.pollInterval || 60000,
+        imapHost: mailConfig.imap?.host || '',
+        imapPort: mailConfig.imap?.port || 993,
+        smtpHost: mailConfig.smtp?.host || '',
+        smtpPort: mailConfig.smtp?.port || 465,
+        passwordSet: Boolean(mailConfig.imap?.auth?.pass || mailConfig.smtp?.auth?.pass),
+        configPath: configFile
+      })
+    }
+    // PUT：校验 → 写盘（saveMailConfig）→ 热重载（applyConfig）
+    if (req.method === 'PUT') {
+      const body = await readJsonBody(req)
+      const email = String(body.email || '').trim()
+      if (!email) return sendJson(res, 400, { error: '监听邮箱不能为空' })
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return sendJson(res, 400, { error: '监听邮箱格式不正确' })
+
+      const imapPort = Number(body.imapPort)
+      const smtpPort = Number(body.smtpPort)
+      const validPort = (p) => Number.isInteger(p) && p > 0 && p <= 65535
+      if (body.imapPort !== undefined && body.imapPort !== '' && !validPort(imapPort)) {
+        return sendJson(res, 400, { error: 'IMAP 端口需为 1-65535 的整数' })
+      }
+      if (body.smtpPort !== undefined && body.smtpPort !== '' && !validPort(smtpPort)) {
+        return sendJson(res, 400, { error: 'SMTP 端口需为 1-65535 的整数' })
+      }
+      const pollInterval = Number(body.pollInterval)
+      if (body.pollInterval !== undefined && body.pollInterval !== '' && (!Number.isFinite(pollInterval) || pollInterval < 1000)) {
+        return sendJson(res, 400, { error: '轮询间隔需为 ≥ 1000 的毫秒数' })
+      }
+
+      const patch = {
+        email,
+        senderFilter: String(body.senderFilter ?? '').trim(),
+        pollInterval: pollInterval || undefined,
+        imapHost: String(body.imapHost ?? '').trim() || undefined,
+        imapPort: validPort(imapPort) ? imapPort : undefined,
+        smtpHost: String(body.smtpHost ?? '').trim() || undefined,
+        smtpPort: validPort(smtpPort) ? smtpPort : undefined,
+        password: body.password  // 空/缺省 → saveMailConfig 保留原授权码
+      }
+      try {
+        saveMailConfig(patch)
+      } catch (e) {
+        return sendJson(res, 500, { error: '保存配置失败: ' + e.message })
+      }
+      const result = applyConfig()
+      return sendJson(res, 200, { ok: true, deferred: result.deferred })
+    }
+    return sendJson(res, 405, { error: 'Method Not Allowed' })
   }
 
   if (pathname === '/api/projects' || pathname.startsWith('/api/projects/')) {

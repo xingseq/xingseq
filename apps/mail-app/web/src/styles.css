@@ -186,6 +186,47 @@ body {
 }
 .tag.warn { background: rgba(255, 167, 38, 0.15); color: var(--warning); }
 
+/* === 邮箱配置卡片 === */
+.config-card { margin: 0 16px 12px; }
+.cfg-msg {
+  background: rgba(102, 187, 106, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(102, 187, 106, 0.4);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+.cfg-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.cfg-field { display: flex; flex-direction: column; gap: 5px; }
+.cfg-field.span2 { grid-column: span 2; }
+.cfg-field > span { font-size: 12px; color: var(--text-muted); }
+.cfg-field input,
+.cfg-row input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 100%;
+}
+.cfg-field input:focus,
+.cfg-row input:focus { outline: none; border-color: var(--accent); }
+.cfg-row { display: flex; gap: 8px; }
+.cfg-row .cfg-host { flex: 1; }
+.cfg-row .cfg-port { width: 90px; flex: none; }
+.cfg-actions { display: flex; align-items: flex-end; }
+@media (max-width: 640px) {
+  .cfg-form { grid-template-columns: 1fr; }
+  .cfg-field.span2 { grid-column: span 1; }
+}
+
 /* === 日志卡片 === */
 .log-card { margin: 0 16px 16px; flex: 1; }
 .auto-toggle {
