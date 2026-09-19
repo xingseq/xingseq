@@ -187,6 +187,7 @@ function applyConfig() {
     console.warn(`[mail-gateway] 热重载停止旧监听器失败: ${err.message}`)
   }
   monitor = createMailMonitor()
+  attachMonitorListeners(monitor)   // 新实例必须重新挂事件，否则 emit 的邮件无人接收
   monitorRunning = false
   ;(async () => {
     if (monitor.ready) await monitor.ready()
@@ -204,6 +205,21 @@ function drainPendingReload() {
     pendingReload = false
     applyConfig()
   }
+}
+
+// 给监听器实例挂上 email/error 事件回调。
+// 必须对每个新建的 monitor 调用（启动时与热重载重建后），
+// 否则热重载后新实例 emit 的邮件没有处理函数接收 → 邮件被静默丢弃。
+// 传入具体实例 m（而非模块级 monitor），避免闭包捕获被重新赋值的变量。
+function attachMonitorListeners(m) {
+  m.on('email', (email) => {
+    handleEmail(email, m).catch(err => {
+      console.error('[mail-gateway] handleEmail 异常:', err)
+    })
+  })
+  m.on('error', (err) => {
+    console.error('[mail-gateway] 监听错误:', err.message)
+  })
 }
 
 // 统一回复发送：dry/mock 走 monitor，live 走真实 SMTP
@@ -662,15 +678,7 @@ if (monitor.dependenciesAvailable === false) {
   }
 }
 
-monitor.on('email', (email) => {
-  handleEmail(email, monitor).catch(err => {
-    console.error('[mail-gateway] handleEmail 异常:', err)
-  })
-})
-
-monitor.on('error', (err) => {
-  console.error('[mail-gateway] 监听错误:', err.message)
-})
+attachMonitorListeners(monitor)
 
 await monitor.start()
 monitorRunning = true
