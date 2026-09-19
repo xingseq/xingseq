@@ -2,7 +2,7 @@
   "name": "mail-app",
   "displayName": "邮件",
   "description": "邮件网关（IMAP 轮询 + SMTP 回复）+ 项目注册表管理界面 + 邮件 CLI，AI 自动回复",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "autoStart": true,
   "ui": {
     "enabled": true,

@@ -1,6 +1,6 @@
 {
   "name": "@xingseq/mail-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "L4 应用：邮件网关 + 邮件 CLI（收发邮件、常驻监听）",
